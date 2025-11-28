@@ -1,0 +1,29 @@
+# 使用x86_64架构的Node.js镜像
+FROM node:18-alpine
+
+# 如果是ARM64系统,使用这个:
+# FROM arm64v8/node:18-alpine
+
+# 如果是32位ARM系统,使用这个:
+# FROM arm32v7/node:18-alpine
+
+# 设置工作目录
+WORKDIR /app
+
+# 优化ARM平台的npm配置
+RUN npm config set registry https://registry.npmmirror.com
+
+# 复制package文件
+COPY package*.json ./
+
+# 安装依赖(ARM平台可能需要更多时间)
+RUN npm install --legacy-peer-deps
+
+# 复制项目文件
+COPY . .
+
+# 暴露端口
+EXPOSE 5173
+
+# 启动命令
+CMD ["npm", "run", "dev", "--", "--host", "0.0.0.0"]

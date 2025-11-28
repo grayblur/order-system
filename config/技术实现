@@ -1,0 +1,12 @@
+order-system/
+├── backend/           # Node.js + Express后端
+│   ├── server.js
+│   ├── routes/
+│   ├── models/
+│   ├── database.db    # SQLite数据库
+│   └── package.json
+├── frontend/          # Vue前端
+│   ├── src/
+│   ├── dist/          # 打包后的静态文件
+│   └── package.json
+└── docker-compose.yml # 容器化部署

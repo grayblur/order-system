@@ -1,0 +1,8 @@
+struct UserInfo{
+    std::wstring name;
+    std::string phone_number;
+    std::wstring stress;
+    QDateTime date_time;
+    bool gived_money;//是否结清
+    std::vector<GoodsInfo> goods;
+};
