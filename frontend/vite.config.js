@@ -27,6 +27,15 @@ export default defineConfig({
   build: {
     minify: 'esbuild',  // 比terser更快
     target: 'es2015',
-    chunkSizeWarningLimit: 1000
+    chunkSizeWarningLimit: 1000,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          vendor: ['vue', 'vue-router', 'pinia'],
+          element: ['element-plus', '@element-plus/icons-vue'],
+          utils: ['axios', 'dayjs']
+        }
+      }
+    }
   }
 })

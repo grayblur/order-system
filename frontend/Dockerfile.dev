@@ -1,11 +1,11 @@
 # 使用x86_64架构的Node.js镜像
-FROM node:18-alpine
+FROM node:20-alpine
 
 # 如果是ARM64系统,使用这个:
-# FROM arm64v8/node:18-alpine
+# FROM arm64v8/node:20-alpine
 
 # 如果是32位ARM系统,使用这个:
-# FROM arm32v7/node:18-alpine
+# FROM arm32v7/node:20-alpine
 
 # 设置工作目录
 WORKDIR /app

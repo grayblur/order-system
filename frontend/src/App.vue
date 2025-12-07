@@ -481,7 +481,7 @@ const orders = ref([])
 // 加载订单数据
 const loadOrders = async () => {
   try {
-    const response = await fetch('http://localhost:3000/api/orders')
+    const response = await fetch('/api/orders')
     const result = await response.json()
 
     if (result.success) {
@@ -657,7 +657,7 @@ const deleteOrder = async (order) => {
       }
     )
 
-    const response = await fetch(`http://localhost:3000/api/orders/${order.id}`, {
+    const response = await fetch(`/api/orders/${order.id}`, {
       method: 'DELETE'
     })
     const result = await response.json()
@@ -698,7 +698,7 @@ const togglePaymentStatus = async (order) => {
     const newPaidAmount = newStatus ? order.totalPrice : 0
     const newPaymentStatusDb = newStatus ? '已支付' : '未支付'
 
-    const response = await fetch(`http://localhost:3000/api/orders/${order.id}`, {
+    const response = await fetch(`/api/orders/${order.id}`, {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json'
@@ -767,7 +767,7 @@ const submitOrder = async () => {
     console.log('提交订单数据:', orderData)
 
     try {
-      const response = await fetch('http://localhost:3000/api/orders', {
+      const response = await fetch('/api/orders', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

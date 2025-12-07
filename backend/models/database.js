@@ -1,27 +1,26 @@
-const sqlite3 = require('sqlite3').verbose();
+const Database = require('better-sqlite3');
 const path = require('path');
 
-class Database {
+class DatabaseManager {
   constructor() {
     this.db = null;
   }
 
   // 连接数据库
   connect() {
-    return new Promise((resolve, reject) => {
-      const dbPath = process.env.DB_PATH || path.join(__dirname, '../../database.db');
-      console.log('数据库路径:', dbPath);
+    const dbPath = process.env.DB_PATH || path.join(__dirname, '../../database.db');
+    console.log('数据库路径:', dbPath);
 
-      this.db = new sqlite3.Database(dbPath, (err) => {
-        if (err) {
-          console.error('数据库连接失败:', err.message);
-          reject(err);
-        } else {
-          console.log('数据库连接成功');
-          resolve();
-        }
-      });
-    });
+    try {
+      this.db = new Database(dbPath);
+      this.db.pragma('journal_mode = WAL');
+      this.db.pragma('foreign_keys = ON');
+      console.log('数据库连接成功');
+      return Promise.resolve();
+    } catch (err) {
+      console.error('数据库连接失败:', err.message);
+      return Promise.reject(err);
+    }
   }
 
   // 初始化数据库表结构
@@ -30,7 +29,7 @@ class Database {
       await this.connect();
 
       // 创建订单表
-      await this.run(`
+      this.run(`
         CREATE TABLE IF NOT EXISTS orders (
           id INTEGER PRIMARY KEY AUTOINCREMENT,
           customer_name TEXT NOT NULL,
@@ -48,7 +47,7 @@ class Database {
       `);
 
       // 创建订单项目表
-      await this.run(`
+      this.run(`
         CREATE TABLE IF NOT EXISTS order_items (
           id INTEGER PRIMARY KEY AUTOINCREMENT,
           order_id INTEGER NOT NULL,
@@ -64,7 +63,7 @@ class Database {
       `);
 
       // 创建商品目录表
-      await this.run(`
+      this.run(`
         CREATE TABLE IF NOT EXISTS goods (
           id INTEGER PRIMARY KEY AUTOINCREMENT,
           category TEXT NOT NULL,
@@ -104,41 +103,33 @@ class Database {
 
   // 执行SQL语句
   run(sql, params = []) {
-    return new Promise((resolve, reject) => {
-      this.db.run(sql, params, function(err) {
-        if (err) {
-          reject(err);
-        } else {
-          resolve({ id: this.lastID, changes: this.changes });
-        }
-      });
-    });
+    try {
+      const stmt = this.db.prepare(sql);
+      const result = stmt.run(params);
+      return { id: result.lastInsertRowid, changes: result.changes };
+    } catch (err) {
+      throw err;
+    }
   }
 
   // 查询单条记录
   get(sql, params = []) {
-    return new Promise((resolve, reject) => {
-      this.db.get(sql, params, (err, row) => {
-        if (err) {
-          reject(err);
-        } else {
-          resolve(row);
-        }
-      });
-    });
+    try {
+      const stmt = this.db.prepare(sql);
+      return stmt.get(params);
+    } catch (err) {
+      throw err;
+    }
   }
 
   // 查询多条记录
   all(sql, params = []) {
-    return new Promise((resolve, reject) => {
-      this.db.all(sql, params, (err, rows) => {
-        if (err) {
-          reject(err);
-        } else {
-          resolve(rows);
-        }
-      });
-    });
+    try {
+      const stmt = this.db.prepare(sql);
+      return stmt.all(params);
+    } catch (err) {
+      throw err;
+    }
   }
 
   // 开始事务
@@ -156,18 +147,22 @@ class Database {
     return this.run('ROLLBACK');
   }
 
+  // 执行事务（better-sqlite3原生支持）
+  transaction(fn) {
+    return this.db.transaction(fn)();
+  }
+
   // 关闭数据库连接
   close() {
     return new Promise((resolve, reject) => {
       if (this.db) {
-        this.db.close((err) => {
-          if (err) {
-            reject(err);
-          } else {
-            console.log('数据库连接已关闭');
-            resolve();
-          }
-        });
+        try {
+          this.db.close();
+          console.log('数据库连接已关闭');
+          resolve();
+        } catch (err) {
+          reject(err);
+        }
       } else {
         resolve();
       }
@@ -176,6 +171,6 @@ class Database {
 }
 
 // 创建单例实例
-const database = new Database();
+const database = new DatabaseManager();
 
 module.exports = database;
