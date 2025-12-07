@@ -71,6 +71,124 @@ router.get('/', async (req, res) => {
   }
 });
 
+// 获取打印记录 - 必须放在 /:id 路由之前
+router.get('/print-records', async (req, res) => {
+  try {
+    const { date, page = 1, limit = 20 } = req.query;
+    let sql = `
+      SELECT * FROM print_records
+      WHERE 1=1
+    `;
+    const params = [];
+
+    // 按日期筛选
+    if (date) {
+      sql += ` AND print_date = ?`;
+      params.push(date);
+    }
+
+    sql += ` ORDER BY printed_at DESC`;
+
+    // 分页
+    const offset = (parseInt(page) - 1) * parseInt(limit);
+    sql += ` LIMIT ? OFFSET ?`;
+    params.push(parseInt(limit), offset);
+
+    const records = await database.all(sql, params);
+
+    // 获取总数
+    let countSql = `SELECT COUNT(*) as total FROM print_records WHERE 1=1`;
+    const countParams = [];
+    if (date) {
+      countSql += ` AND print_date = ?`;
+      countParams.push(date);
+    }
+
+    const countResult = await database.get(countSql, countParams);
+
+    res.json({
+      success: true,
+      data: records,
+      pagination: {
+        page: parseInt(page),
+        limit: parseInt(limit),
+        total: countResult.total,
+        pages: Math.ceil(countResult.total / parseInt(limit))
+      }
+    });
+  } catch (error) {
+    console.error('获取打印记录失败:', error);
+    res.status(500).json({
+      success: false,
+      error: '获取打印记录失败',
+      message: error.message
+    });
+  }
+});
+
+// 获取生产单（按日期分组打印） - 必须放在 /:id 路由之前
+router.get('/production/:date', async (req, res) => {
+  try {
+    const date = req.params.date;
+
+    const orders = await database.all(`
+      SELECT
+        o.*,
+        oi.product_name,
+        oi.quantity,
+        oi.unit_price
+      FROM orders o
+      LEFT JOIN order_items oi ON o.id = oi.order_id
+      WHERE o.delivery_date = ?
+      ORDER BY o.customer_name, oi.product_name
+    `, [date]);
+
+    // 按客户分组
+    const productionList = {};
+    orders.forEach(order => {
+      const customerId = order.id;
+      if (!productionList[customerId]) {
+        productionList[customerId] = {
+          customer_info: {
+            name: order.customer_name,
+            address: order.customer_address,
+            phone: order.customer_phone,
+            delivery_date: order.delivery_date,
+            notes: order.notes,
+            total_amount: order.total_amount,
+            paid_amount: order.paid_amount,
+            payment_status: order.payment_status,
+            order_status: order.order_status
+          },
+          items: []
+        };
+      }
+
+      if (order.product_name) {
+        productionList[customerId].items.push({
+          name: order.product_name,
+          quantity: order.quantity,
+          unit_price: order.unit_price
+        });
+      }
+    });
+
+    res.json({
+      success: true,
+      data: Object.values(productionList),
+      date,
+      total_orders: Object.keys(productionList).length
+    });
+  } catch (error) {
+    console.error('获取生产单失败:', error);
+    res.status(500).json({
+      success: false,
+      error: '获取生产单失败',
+      message: error.message
+    });
+  }
+});
+
 // 获取单个订单详情
 router.get('/:id', async (req, res) => {
   try {
@@ -222,6 +340,54 @@ router.post('/', async (req, res) => {
   }
 });
 
+// 记录打印操作 - 必须放在 /:id 路由之前
+router.post('/print', async (req, res) => {
+  try {
+    const { print_date, print_type = 'production_list', notes } = req.body;
+
+    // 验证必填字段
+    if (!print_date) {
+      return res.status(400).json({
+        success: false,
+        error: '打印日期不能为空'
+      });
+    }
+
+    // 获取该日期的订单数量
+    const orderCountResult = await database.get(`
+      SELECT COUNT(DISTINCT id) as count FROM orders WHERE delivery_date = ?
+    `, [print_date]);
+
+    const orderCount = orderCountResult.count || 0;
+
+    // 记录打印操作
+    const result = await database.run(`
+      INSERT INTO print_records (print_date, print_type, status, order_count, notes)
+      VALUES (?, ?, 'success', ?, ?)
+    `, [print_date, print_type, orderCount, notes || '']);
+
+    res.json({
+      success: true,
+      message: '打印记录保存成功',
+      data: {
+        id: result.id,
+        print_date,
+        print_type,
+        order_count: orderCount,
+        printed_at: new Date().toISOString()
+      }
+    });
+
+  } catch (error) {
+    console.error('保存打印记录失败:', error);
+    res.status(500).json({
+      success: false,
+      error: '保存打印记录失败',
+      message: error.message
+    });
+  }
+});
+
 // 更新订单
 router.put('/:id', async (req, res) => {
   try {
@@ -311,69 +477,6 @@ router.delete('/:id', async (req, res) => {
     res.status(500).json({
       success: false,
       error: '删除订单失败',
-      message: error.message
-    });
-  }
-});
-
-// 获取生产单（按日期分组打印）
-router.get('/production/:date', async (req, res) => {
-  try {
-    const date = req.params.date;
-
-    const orders = await database.all(`
-      SELECT
-        o.*,
-        oi.product_name,
-        oi.quantity,
-        oi.unit_price
-      FROM orders o
-      LEFT JOIN order_items oi ON o.id = oi.order_id
-      WHERE o.delivery_date = ?
-      ORDER BY o.customer_name, oi.product_name
-    `, [date]);
-
-    // 按客户分组
-    const productionList = {};
-    orders.forEach(order => {
-      const customerId = order.id;
-      if (!productionList[customerId]) {
-        productionList[customerId] = {
-          customer_info: {
-            name: order.customer_name,
-            address: order.customer_address,
-            phone: order.customer_phone,
-            delivery_date: order.delivery_date,
-            notes: order.notes,
-            total_amount: order.total_amount,
-            paid_amount: order.paid_amount,
-            payment_status: order.payment_status,
-            order_status: order.order_status
-          },
-          items: []
-        };
-      }
-
-      if (order.product_name) {
-        productionList[customerId].items.push({
-          name: order.product_name,
-          quantity: order.quantity,
-          unit_price: order.unit_price
-        });
-      }
-    });
-
-    res.json({
-      success: true,
-      data: Object.values(productionList),
-      date,
-      total_orders: Object.keys(productionList).length
-    });
-  } catch (error) {
-    console.error('获取生产单失败:', error);
-    res.status(500).json({
-      success: false,
-      error: '获取生产单失败',
       message: error.message
     });
   }

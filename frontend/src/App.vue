@@ -285,6 +285,12 @@
         <el-empty v-else description="暂无订单数据" :image-size="100" />
       </div>
     </el-dialog>
+
+    <!-- 打印清单弹窗 -->
+    <PrintDialog
+      v-model="showPrintDialog"
+      @confirm-print="handlePrintConfirm"
+    />
   </div>
 </template>
 
@@ -292,6 +298,8 @@
 import { ref, computed, reactive, nextTick, onMounted, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { User, Goods, Search, Printer, Check, Delete, View } from '@element-plus/icons-vue'
+import PrintDialog from './components/PrintDialog.vue'
+import dayjs from 'dayjs'
 
 const customerFormRef = ref()
 
@@ -473,6 +481,7 @@ const isPaid = ref(false)
 
 // --- 订单管理数据 ---
 const showOrdersDialog = ref(false)
+const showPrintDialog = ref(false)
 const selectedDate = ref(null)
 
 // 订单数据
@@ -819,13 +828,65 @@ const submitOrder = async () => {
 
 // 打印处理
 const handlePrint = () => {
-  if (selectedItems.value.length === 0) {
-    ElMessage.warning('请先选择商品')
-    return
-  }
+  // 打开打印日期选择弹窗
+  showPrintDialog.value = true
+}
 
-  // 触发浏览器打印
-  window.print()
+// 处理打印确认
+const handlePrintConfirm = async (selectedDate) => {
+  try {
+    // 将日期格式化为 YYYY-MM-DD
+    const dateStr = dayjs(selectedDate).format('YYYY-MM-DD')
+
+    // 先调用后端API记录打印
+    ElMessage.info('正在记录打印操作...')
+
+    const printResponse = await fetch('/api/orders/print', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        print_date: dateStr,
+        print_type: 'production_list',
+        notes: '花馍订单生产清单打印'
+      })
+    })
+
+    const printResult = await printResponse.json()
+
+    if (!printResult.success) {
+      ElMessage.error(`打印记录失败: ${printResult.error}`)
+      return
+    }
+
+    // 打印记录成功后，显示成功消息并打开打印预览
+    ElMessage.success(`打印记录成功，共 ${printResult.data.order_count} 个订单`)
+
+    // 跳转到打印预览页面，并传递日期参数
+    const printUrl = `/print/${dateStr}`
+
+    // 打开新窗口进行打印预览
+    const printWindow = window.open(printUrl, '_blank')
+
+    if (!printWindow) {
+      ElMessage.warning('请允许弹出窗口以打印清单')
+      return
+    }
+
+    ElMessage.success('正在准备打印清单...')
+
+    // 等待页面加载完成后触发打印
+    printWindow.addEventListener('load', () => {
+      setTimeout(() => {
+        printWindow.print()
+      }, 500)
+    })
+
+  } catch (error) {
+    console.error('打印失败:', error)
+    ElMessage.error('打印失败，请重试')
+  }
 }
 
 // 重置表单
