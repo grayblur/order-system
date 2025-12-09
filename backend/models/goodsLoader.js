@@ -67,7 +67,7 @@ class GoodsLoader {
               const productName = productItems[0];
               const productPrice = productItems[1];
               const product = {
-                name: productCategoryName + '-'+ productName,
+                name: productName,
                 price: productPrice,
                 category: productCategoryName // 保留第三层分类信息
               };
@@ -79,7 +79,7 @@ class GoodsLoader {
                   Object.keys(item).forEach(productName => {
                     const productPrice = item[productName];
                     const product = {
-                      name: productCategoryName + '-'+ productName,
+                      name: productName,
                       price: productPrice,
                       category: productCategoryName // 保留第三层分类信息
                     };
@@ -93,7 +93,7 @@ class GoodsLoader {
             Object.keys(productItems).forEach(productName => {
               const productPrice = productItems[productName];
               const product = {
-                name: productCategoryName + '-'+  productName,
+                name: productName,
                 price: productPrice,
                 category: productCategoryName // 保留第三层分类信息
               };
@@ -281,6 +281,24 @@ class GoodsLoader {
     });
 
     return result;
+  }
+
+  /**
+   * 保存商品数据到文件
+   * @param {Array} newGoodsData - 商品数据数组，格式与 goods.json 中的 goods 字段一致
+   */
+  saveGoodsData(newGoodsData) {
+    try {
+      // newGoodsData 应该是数组格式 [{"花馍":[...]}, {"果蔬":[...]}]
+      const data = { goods: Array.isArray(newGoodsData) ? newGoodsData : [newGoodsData] };
+      fs.writeFileSync(this.filePath, JSON.stringify(data, null, 2), 'utf8');
+      this.goodsData = data.goods;
+      console.log('✅ 商品数据保存成功');
+      return true;
+    } catch (error) {
+      console.error('保存商品数据失败:', error.message);
+      return false;
+    }
   }
 
   /**

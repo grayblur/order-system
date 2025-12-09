@@ -7,6 +7,10 @@
         <span class="sub-title">生产/订单录入</span>
       </div>
       <div class="header-right">
+        <el-button type="success" @click="handleOpenGoodsManager">
+          <el-icon><Setting /></el-icon>
+          商品管理
+        </el-button>
         <el-button type="primary" @click="resetForm">
           <el-icon><Delete /></el-icon>
           清除数据
@@ -302,17 +306,27 @@
       v-model="showPrintDialog"
       @confirm-print="handlePrintConfirm"
     />
+
+    <!-- 商品管理组件 -->
+    <GoodsManager ref="goodsManagerRef" />
   </div>
 </template>
 
 <script setup>
 import { ref, computed, reactive, nextTick, onMounted, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { User, Goods, Search, Printer, Check, Delete, View } from '@element-plus/icons-vue'
+import { User, Goods, Search, Printer, Check, Delete, View, Setting } from '@element-plus/icons-vue'
 import PrintDialog from './components/PrintDialog.vue'
+import GoodsManager from './components/GoodsManager.vue'
 import dayjs from 'dayjs'
 
 const customerFormRef = ref()
+const goodsManagerRef = ref()
+
+// 打开商品管理器
+const handleOpenGoodsManager = () => {
+  goodsManagerRef.value?.open()
+}
 
 // --- 持久化存储工具函数 ---
 const STORAGE_KEY = 'order-form-data'

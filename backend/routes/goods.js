@@ -136,21 +136,48 @@ router.get('/search', (req, res) => {
   }
 });
 
-// 注：商品数据从 goods.json 文件读取
-// POST、PUT、DELETE 接口目前不可用，商品数据应直接修改 config/goods.json 文件
+// 保存商品数据（整体更新）
+router.put('/', (req, res) => {
+  try {
+    const { data } = req.body;
+
+    if (!data) {
+      return res.status(400).json({
+        success: false,
+        error: '缺少商品数据'
+      });
+    }
+
+    // 保存数据到文件
+    const success = goodsLoader.saveGoodsData(data);
+
+    if (success) {
+      res.json({
+        success: true,
+        message: '商品数据已保存'
+      });
+    } else {
+      res.status(500).json({
+        success: false,
+        error: '保存商品数据失败'
+      });
+    }
+  } catch (error) {
+    console.error('保存商品失败:', error);
+    res.status(500).json({
+      success: false,
+      error: '保存商品数据失败',
+      message: error.message
+    });
+  }
+});
+
+// 注：POST、DELETE 接口目前不可用
 router.post('/', (req, res) => {
   res.status(503).json({
     success: false,
     error: '商品添加已禁用',
-    message: '请直接编辑 backend/resources/goods.json 文件来修改商品数据'
-  });
-});
-
-router.put('/:id', (req, res) => {
-  res.status(503).json({
-    success: false,
-    error: '商品更新已禁用',
-    message: '请直接编辑 backend/resources/goods.json 文件来修改商品数据'
+    message: '请使用编辑器直接修改商品'
   });
 });
 
@@ -158,7 +185,7 @@ router.delete('/:id', (req, res) => {
   res.status(503).json({
     success: false,
     error: '商品删除已禁用',
-    message: '请直接编辑 backend/resources/goods.json 文件来修改商品数据'
+    message: '请使用编辑器直接修改商品'
   });
 });
 
