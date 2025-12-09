@@ -142,7 +142,7 @@
                     <el-tag v-if="data.isItem" size="small" type="danger" effect="plain" class="price-tag">
                       ¥{{ data.price }}
                     </el-tag>
-                    <span v-if="data.unit" class="unit-text">/ {{ data.unit }}</span>
+                    <span v-if="data.unit" class="unit-text">{{ data.unit }}</span>
                   </div>
 
                   <!-- 数量控制器 (仅选中且是商品时显示) -->
@@ -655,7 +655,7 @@ const convertGoodsDataToTree = (apiData) => {
           isItem: true,
           selected: false,
           quantity: 1,
-          unit: product.unit || '个',
+          unit: product.unit,
           category: categoryName, // 第一层分类
           subcategory: subcategoryName, // 第二层分类
           productCategory: thirdLevelCategory // 第三层分类
