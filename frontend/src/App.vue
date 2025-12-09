@@ -256,7 +256,7 @@
             <el-table-column prop="items" label="订购商品" min-width="200">
               <template #default="scope">
                 <div v-for="item in scope.row.items" :key="item.id" class="order-item">
-                  {{ item.label }} x{{ item.quantity }} (¥{{ item.price * item.quantity }})
+                  {{ item.category }}-{{ item.productCategory }}, {{ item.label }} x{{ item.quantity }} (¥{{ item.price * item.quantity }})
                 </div>
               </template>
             </el-table-column>
@@ -588,7 +588,14 @@ const loadOrders = async (page = 1) => {
         customerName: order.customer_name,
         phone: order.customer_phone,
         deliveryDate: order.delivery_date,
-        items: [], // 订单列表中简化显示
+        items: order.items ? order.items.map(item => ({
+          id: item.id,
+          category: item.category,
+          productCategory: item.product_category,
+          label: item.product_name,
+          quantity: item.quantity,
+          price: item.unit_price
+        })) : [],
         totalPrice: order.total_amount,
         isPaid: order.payment_status === '已支付',
         notes: order.notes,

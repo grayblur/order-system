@@ -38,6 +38,22 @@ router.get('/', async (req, res) => {
 
     const orders = await database.all(sql, params);
 
+    // 为每个订单获取商品信息
+    for (const order of orders) {
+      const items = await database.all(
+        `SELECT
+          category,
+          product_category,
+          product_name,
+          quantity,
+          unit_price
+        FROM order_items
+        WHERE order_id = ?`,
+        [order.id]
+      );
+      order.items = items;
+    }
+
     // 获取总数
     let countSql = `SELECT COUNT(DISTINCT id) as total FROM orders WHERE 1=1`;
     const countParams = [];
