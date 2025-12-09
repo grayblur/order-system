@@ -67,7 +67,7 @@ class GoodsLoader {
               const productName = productItems[0];
               const productPrice = productItems[1];
               const product = {
-                name: productName,
+                name: productCategoryName + '-'+ productName,
                 price: productPrice,
                 category: productCategoryName // 保留第三层分类信息
               };
@@ -79,7 +79,7 @@ class GoodsLoader {
                   Object.keys(item).forEach(productName => {
                     const productPrice = item[productName];
                     const product = {
-                      name: productName,
+                      name: productCategoryName + '-'+ productName,
                       price: productPrice,
                       category: productCategoryName // 保留第三层分类信息
                     };
@@ -93,7 +93,7 @@ class GoodsLoader {
             Object.keys(productItems).forEach(productName => {
               const productPrice = productItems[productName];
               const product = {
-                name: productName,
+                name: productCategoryName + '-'+  productName,
                 price: productPrice,
                 category: productCategoryName // 保留第三层分类信息
               };
