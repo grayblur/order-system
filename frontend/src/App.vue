@@ -256,7 +256,7 @@
             <el-table-column prop="items" label="订购商品" min-width="200">
               <template #default="scope">
                 <div v-for="item in scope.row.items" :key="item.id" class="order-item">
-                  {{ item.category }}-{{ item.productCategory }}-{{ item.label }} x{{ item.quantity }} (¥{{ item.price * item.quantity }})
+                  {{ item.label }} x{{ item.quantity }} (¥{{ item.price * item.quantity }})
                 </div>
               </template>
             </el-table-column>

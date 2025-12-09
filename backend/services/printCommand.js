@@ -112,12 +112,13 @@ const printCommand = {
       const customerInfo = order.customer_info || {}
       if (order.items && order.items.length > 0) {
         order.items.forEach(item => {
-          // 使用完整名称：大类-小类-商品名
-          const fullName = `${item.category || ''}-${item.product_category || ''}-${item.name || ''}`
-          const key = fullName
+          // 使用小类-商品名作为key（不含大类）
+          const nameWithoutMainCategory = `${item.product_category || ''}-${item.name || ''}`
+          const key = nameWithoutMainCategory
           if (!productSummary[key]) {
             productSummary[key] = {
-              name: fullName,
+              category: item.category || '',
+              name: nameWithoutMainCategory,
               quantity: 0,
               unit: item.unit || '份'
             }
@@ -128,20 +129,36 @@ const printCommand = {
       grandTotal += customerInfo.total_amount || 0
     })
 
-    const productSummaryHtml = Object.values(productSummary)
-      .map((product, index) => `
+    // 按大类排序（花馍优先，然后果蔬）
+    const sortedProducts = Object.values(productSummary).sort((a, b) => {
+      const order = { '花馍': 1, '果蔬': 2 }
+      const aOrder = order[a.category] || 999
+      const bOrder = order[b.category] || 999
+      return aOrder - bOrder
+    })
+
+    let lastCategory = ''
+    const productSummaryHtml = sortedProducts
+      .map((product) => {
+        const showCategory = product.category !== lastCategory
+        const categoryDisplay = showCategory ? product.category : ''
+        lastCategory = product.category
+
+        return `
         <tr>
-          <td style="text-align: center;">${index + 1}</td>
+          <td style="text-align: center;">${categoryDisplay}</td>
           <td>${product.name}</td>
           <td style="text-align: center; font-weight: bold; font-size: 26px;">${product.quantity} ${product.unit}</td>
         </tr>
-      `).join('')
+      `
+      }).join('')
 
     const orderDetailsHtml = printData
       .map((order, index) => {
         const customerInfo = order.customer_info || {}
         const itemsHtml = order.items && order.items.length > 0
           ? order.items.map(item => {
+              // 显示完整的大类-小类-商品名
               const fullName = `${item.category || ''}-${item.product_category || ''}-${item.name || ''}`
               return `<li><span class="product-item-name">${fullName}</span> x ${item.quantity}</li>`
             }).join('')
@@ -155,7 +172,6 @@ const printCommand = {
 
         return `
           <tr>
-            <td style="text-align: center;">${index + 1}</td>
             <td>
               <strong>${customerInfo.name || '未知客户'}</strong><br>
               <span style="font-size: 20px;">${customerInfo.address || '无地址'}</span>
@@ -320,7 +336,7 @@ const printCommand = {
           <table>
             <thead>
               <tr>
-                <th style="width: 10%;">序号</th>
+                <th style="width: 10%;">分类</th>
                 <th style="width: 60%;">商品名称</th>
                 <th style="width: 30%;">总数量</th>
               </tr>
@@ -334,10 +350,9 @@ const printCommand = {
           <table>
             <thead>
               <tr>
-                <th style="width: 5%;">序号</th>
                 <th style="width: 20%;">客户信息 (姓名/地址)</th>
-                <th style="width: 10%;">联系电话</th>
-                <th style="width: 25%;">商品信息</th>
+                <th style="width: 12%;">联系电话</th>
+                <th style="width: 28%;">商品信息</th>
                 <th style="width: 10%;">金额</th>
                 <th style="width: 15%;">结清状态</th>
                 <th style="width: 15%;">备注信息</th>
