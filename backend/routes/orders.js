@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const database = require('../models/database');
+const printerService = require('../services/printerService');
 
 // 获取订单列表
 router.get('/', async (req, res) => {
@@ -28,7 +29,7 @@ router.get('/', async (req, res) => {
       params.push(status);
     }
 
-    sql += ` GROUP BY o.id ORDER BY o.created_at DESC`;
+    sql += ` GROUP BY o.id ORDER BY o.delivery_date DESC, o.created_at DESC`;
 
     // 分页
     const offset = (parseInt(page) - 1) * parseInt(limit);
@@ -189,6 +190,233 @@ router.get('/production/:date', async (req, res) => {
   }
 });
 
+// 获取系统打印机列表 - 必须放在 /:id 路由之前
+router.get('/printers', async (req, res) => {
+  try {
+    const { refresh = false } = req.query;
+
+    let printers;
+    if (refresh === 'true') {
+      printers = await printerService.refreshPrinters();
+    } else {
+      printers = await printerService.getSystemPrinters();
+    }
+
+    res.json({
+      success: true,
+      data: {
+        printers,
+        count: printers.length,
+        lastRefresh: printerService.lastRefresh,
+        platform: process.platform
+      }
+    });
+  } catch (error) {
+    console.error('获取打印机列表失败:', error);
+    res.status(500).json({
+      success: false,
+      error: '获取打印机列表失败',
+      message: error.message
+    });
+  }
+});
+
+// 打印生产清单 - 新的专用接口
+router.post('/print-production-list', async (req, res) => {
+  try {
+    const { printerName, date } = req.body;
+
+    // 验证必填字段
+    if (!date) {
+      return res.status(400).json({
+        success: false,
+        error: '打印日期不能为空'
+      });
+    }
+
+    // 获取指定日期的订单数据（使用与打印预览相同的逻辑）
+    const orders = await database.all(`
+      SELECT
+        o.*,
+        oi.product_name,
+        oi.quantity,
+        oi.unit_price
+      FROM orders o
+      LEFT JOIN order_items oi ON o.id = oi.order_id
+      WHERE o.delivery_date = ?
+      ORDER BY o.customer_name, oi.product_name
+    `, [date]);
+
+    if (!orders || orders.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: `${date} 没有找到订单，无法打印`
+      });
+    }
+
+    // 按客户分组（使用与打印预览相同的逻辑）
+    const printData = {};
+    orders.forEach(order => {
+      const customerId = order.id;
+      if (!printData[customerId]) {
+        printData[customerId] = {
+          customer_info: {
+            name: order.customer_name,
+            address: order.customer_address,
+            phone: order.customer_phone,
+            delivery_date: order.delivery_date,
+            notes: order.notes,
+            total_amount: order.total_amount,
+            paid_amount: order.paid_amount,
+            payment_status: order.payment_status,
+            order_status: order.order_status
+          },
+          items: []
+        };
+      }
+
+      if (order.product_name) {
+        printData[customerId].items.push({
+          name: order.product_name,
+          quantity: order.quantity,
+          unit_price: order.unit_price
+        });
+      }
+    });
+
+    const printArray = Object.values(printData);
+    const dateStr = new Date(date + 'T00:00:00').toLocaleDateString('zh-CN', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    }).replace(/\s/g, '');
+
+    // 执行打印
+    const printResult = await printerService.printProductionList(
+      printArray,
+      printerName,
+      dateStr
+    );
+
+    if (printResult.success) {
+      // 记录打印操作
+      try {
+        await database.run(`
+          INSERT INTO print_history (print_date, print_type, order_count, notes)
+          VALUES (?, ?, ?, ?)
+        `, [date, 'production_list', printArray.length, `使用打印机: ${printerName}`]);
+      } catch (logError) {
+        console.error('记录打印历史失败:', logError);
+      }
+
+      res.json({
+        success: true,
+        message: `成功打印 ${dateStr} 的生产清单，共 ${printArray.length} 个订单`,
+        data: {
+          print_date: date,
+          order_count: printArray.length,
+          printer_name: printerName
+        }
+      });
+    } else {
+      res.status(500).json({
+        success: false,
+        error: printResult.message || '打印失败'
+      });
+    }
+
+  } catch (error) {
+    console.error('打印生产清单失败:', error);
+    res.status(500).json({
+      success: false,
+      error: '打印生产清单失败: ' + error.message
+    });
+  }
+});
+
+// 打印文档到指定打印机 - 必须放在 /:id 路由之前
+router.post('/print-to-printer', async (req, res) => {
+  try {
+    const { printerName, documentContent, print_date, print_type = 'production_list', options = {} } = req.body;
+
+    // 验证必填字段
+    if (!printerName) {
+      return res.status(400).json({
+        success: false,
+        error: '打印机名称不能为空'
+      });
+    }
+
+    if (!documentContent) {
+      return res.status(400).json({
+        success: false,
+        error: '打印内容不能为空'
+      });
+    }
+
+    // 创建临时打印文件
+    const filename = `print_${Date.now()}.txt`;
+    const documentPath = await printerService.createPrintPreview(documentContent, filename);
+
+    if (!documentPath) {
+      return res.status(500).json({
+        success: false,
+        error: '创建打印文档失败'
+      });
+    }
+
+    // 执行打印
+    const printResult = await printerService.printDocument(printerName, documentPath, options);
+
+    if (printResult.success) {
+      // 如果有打印日期，记录打印操作
+      if (print_date) {
+        try {
+          // 获取该日期的订单数量
+          const orderCountResult = await database.get(`
+            SELECT COUNT(DISTINCT id) as count FROM orders WHERE delivery_date = ?
+          `, [print_date]);
+
+          const orderCount = orderCountResult.count || 0;
+
+          // 记录打印操作
+          await database.run(`
+            INSERT INTO print_records (print_date, print_type, status, order_count, notes)
+            VALUES (?, ?, 'success', ?, ?)
+          `, [print_date, print_type, orderCount, `打印到: ${printerName}`]);
+        } catch (dbError) {
+          console.error('记录打印操作失败:', dbError);
+        }
+      }
+
+      res.json({
+        success: true,
+        message: `文档已成功发送到打印机: ${printerName}`,
+        data: {
+          printerName,
+          documentPath,
+          printResult: printResult.output
+        }
+      });
+    } else {
+      res.status(500).json({
+        success: false,
+        error: '打印失败',
+        message: printResult.message,
+        details: printResult.error
+      });
+    }
+
+  } catch (error) {
+    console.error('打印到打印机失败:', error);
+    res.status(500).json({
+      success: false,
+      error: '打印失败',
+      message: error.message
+    });
+  }
+});
+
 // 获取单个订单详情
 router.get('/:id', async (req, res) => {
   try {
@@ -339,6 +567,7 @@ router.post('/', async (req, res) => {
     });
   }
 });
+
 
 // 记录打印操作 - 必须放在 /:id 路由之前
 router.post('/print', async (req, res) => {
