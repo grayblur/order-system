@@ -8,11 +8,11 @@
   >
     <div class="print-dialog-content">
       <div class="dialog-description">
-        请选择要打印的配送日期和打印机，系统将打印该日期的所有订单生产清单。
+        请选择要打印的制作日期和打印机，系统将打印该日期的所有订单生产清单。
       </div>
 
       <div class="date-selector">
-        <label class="date-label">选择配送日期：</label>
+        <label class="date-label">选择制作日期：</label>
         <el-date-picker
           v-model="selectedDate"
           type="date"
@@ -286,10 +286,12 @@ const openPrintPreview = (printData, dateStr, dateIso) => {
     const customerInfo = order.customer_info || {}
     if (order.items && order.items.length > 0) {
       order.items.forEach(item => {
-        const key = item.name
+        // 使用完整名称作为key：大类-小类-商品名
+        const fullName = `${item.category || ''}-${item.product_category || ''}-${item.name || ''}`
+        const key = fullName
         if (!productSummary[key]) {
           productSummary[key] = {
-            name: item.name,
+            name: fullName,
             quantity: 0,
             unit: item.unit || '份'
           }
@@ -314,9 +316,10 @@ const openPrintPreview = (printData, dateStr, dateIso) => {
     let itemsHtml = ''
 
     if (order.items && order.items.length > 0) {
-      itemsHtml = order.items.map(item =>
-        '<li><span class="product-item-name">' + item.name + '</span> x ' + item.quantity + '</li>'
-      ).join('')
+      itemsHtml = order.items.map(item => {
+        const fullName = `${item.category || ''}-${item.product_category || ''}-${item.name || ''}`
+        return '<li><span class="product-item-name">' + fullName + '</span> x ' + item.quantity + '</li>'
+      }).join('')
     } else {
       itemsHtml = '<li>无商品信息</li>'
     }

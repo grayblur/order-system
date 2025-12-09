@@ -112,10 +112,12 @@ const printCommand = {
       const customerInfo = order.customer_info || {}
       if (order.items && order.items.length > 0) {
         order.items.forEach(item => {
-          const key = item.name
+          // 使用完整名称：大类-小类-商品名
+          const fullName = `${item.category || ''}-${item.product_category || ''}-${item.name || ''}`
+          const key = fullName
           if (!productSummary[key]) {
             productSummary[key] = {
-              name: item.name,
+              name: fullName,
               quantity: 0,
               unit: item.unit || '份'
             }
@@ -139,9 +141,10 @@ const printCommand = {
       .map((order, index) => {
         const customerInfo = order.customer_info || {}
         const itemsHtml = order.items && order.items.length > 0
-          ? order.items.map(item =>
-              `<li><span class="product-item-name">${item.name}</span> x ${item.quantity}</li>`
-            ).join('')
+          ? order.items.map(item => {
+              const fullName = `${item.category || ''}-${item.product_category || ''}-${item.name || ''}`
+              return `<li><span class="product-item-name">${fullName}</span> x ${item.quantity}</li>`
+            }).join('')
           : '<li>无商品信息</li>'
 
         // 计算是否已结清

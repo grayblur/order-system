@@ -135,6 +135,9 @@ router.get('/production/:date', async (req, res) => {
     const orders = await database.all(`
       SELECT
         o.*,
+        oi.category,
+        oi.subcategory,
+        oi.product_category,
         oi.product_name,
         oi.quantity,
         oi.unit_price
@@ -167,6 +170,9 @@ router.get('/production/:date', async (req, res) => {
 
       if (order.product_name) {
         productionList[customerId].items.push({
+          category: order.category,
+          subcategory: order.subcategory,
+          product_category: order.product_category,
           name: order.product_name,
           quantity: order.quantity,
           unit_price: order.unit_price
@@ -238,6 +244,9 @@ router.post('/print-production-list', async (req, res) => {
     const orders = await database.all(`
       SELECT
         o.*,
+        oi.category,
+        oi.subcategory,
+        oi.product_category,
         oi.product_name,
         oi.quantity,
         oi.unit_price
@@ -277,6 +286,9 @@ router.post('/print-production-list', async (req, res) => {
 
       if (order.product_name) {
         printData[customerId].items.push({
+          category: order.category,
+          subcategory: order.subcategory,
+          product_category: order.product_category,
           name: order.product_name,
           quantity: order.quantity,
           unit_price: order.unit_price
@@ -477,16 +489,16 @@ router.post('/', async (req, res) => {
       });
     }
 
-    // 验证配送日期：不能是过去的日期
+    // 验证制作日期：不能是过去的日期
     const today = new Date();
     today.setHours(0, 0, 0, 0); // 重置到今天的开始
     const deliveryDate = new Date(delivery_date);
-    deliveryDate.setHours(0, 0, 0, 0); // 重置到配送日期的开始
+    deliveryDate.setHours(0, 0, 0, 0); // 重置到制作日期的开始
 
     if (deliveryDate < today) {
       return res.status(400).json({
         success: false,
-        error: '配送日期不能早于今天',
+        error: '制作日期不能早于今天',
         details: `选择的日期: ${delivery_date}, 今天: ${today.toISOString().split('T')[0]}`
       });
     }
@@ -532,13 +544,14 @@ router.post('/', async (req, res) => {
     for (const item of items) {
       await database.run(`
         INSERT INTO order_items (
-          order_id, category, subcategory, product_name,
+          order_id, category, subcategory, product_category, product_name,
           quantity, unit_price, total_price
-        ) VALUES (?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
       `, [
         orderId,
         item.category,
         item.subcategory,
+        item.product_category || '',
         item.product_name,
         item.quantity,
         item.unit_price,

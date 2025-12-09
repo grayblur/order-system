@@ -53,6 +53,7 @@ class DatabaseManager {
           order_id INTEGER NOT NULL,
           category TEXT NOT NULL,
           subcategory TEXT NOT NULL,
+          product_category TEXT,
           product_name TEXT NOT NULL,
           quantity INTEGER NOT NULL,
           unit_price REAL NOT NULL,
@@ -61,6 +62,18 @@ class DatabaseManager {
           FOREIGN KEY (order_id) REFERENCES orders (id) ON DELETE CASCADE
         )
       `);
+
+      // 检查并添加 product_category 字段（如果不存在）
+      try {
+        const columns = this.all(`PRAGMA table_info(order_items)`);
+        const hasProductCategory = columns.some(col => col.name === 'product_category');
+        if (!hasProductCategory) {
+          this.run(`ALTER TABLE order_items ADD COLUMN product_category TEXT`);
+          console.log('✅ 已添加 product_category 字段到 order_items 表');
+        }
+      } catch (error) {
+        console.log('检查/添加 product_category 字段时出错:', error.message);
+      }
 
       // 创建商品目录表
       this.run(`

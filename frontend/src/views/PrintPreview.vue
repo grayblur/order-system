@@ -3,7 +3,7 @@
     <div class="print-header">
       <h1>花馍订单生产清单</h1>
       <div class="date-info">
-        <span>配送日期：{{ currentDate }}</span>
+        <span>制作日期：{{ currentDate }}</span>
         <span>打印时间：{{ currentTime }}</span>
       </div>
     </div>
@@ -17,7 +17,7 @@
             <span>地址：{{ order.customerInfo.address }}</span>
           </div>
           <div class="delivery-info">
-            <span>配送日期：{{ formatDate(order.customerInfo.deliveryDate) }}</span>
+            <span>制作日期：{{ formatDate(order.customerInfo.deliveryDate) }}</span>
             <el-tag :type="getPaymentStatusType(order.paymentStatus)">
               {{ getPaymentStatusText(order) }}
             </el-tag>
@@ -88,7 +88,7 @@ const loadOrdersForDate = async (date) => {
         },
         items: order.items.map((item, itemIndex) => ({
           id: itemIndex + 1,
-          name: item.name,
+          name: `${item.category || ''}-${item.product_category || ''}-${item.name || ''}`,
           price: item.unit_price,
           quantity: item.quantity
         })),

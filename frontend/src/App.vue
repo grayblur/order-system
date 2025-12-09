@@ -81,7 +81,7 @@
             
             <el-row :gutter="20">
               <el-col :span="12">
-                <el-form-item label="预定日期">
+                <el-form-item label="制作日期">
                   <el-date-picker
                     v-model="form.date"
                     type="date"
@@ -185,7 +185,7 @@
           <div v-else class="summary-list">
             <div v-for="item in selectedItems" :key="item.id" class="summary-item">
               <div class="item-info">
-                <div class="item-name">{{ item.label }}</div>
+                <div class="item-name">{{ item.category }}-{{ item.productCategory }}-{{ item.label }}</div>
                 <div class="item-calc text-secondary">
                   ¥{{ item.price }} × {{ item.quantity }}
                 </div>
@@ -252,11 +252,11 @@
           <el-table :data="filteredOrders" stripe style="width: 100%">
             <el-table-column prop="customerName" label="客户姓名" width="120" />
             <el-table-column prop="phone" label="联系电话" width="130" />
-            <el-table-column prop="deliveryDate" label="配送日期" width="120" />
+            <el-table-column prop="deliveryDate" label="制作日期" width="120" />
             <el-table-column prop="items" label="订购商品" min-width="200">
               <template #default="scope">
                 <div v-for="item in scope.row.items" :key="item.id" class="order-item">
-                  {{ item.label }} x{{ item.quantity }} (¥{{ item.price * item.quantity }})
+                  {{ item.category }}-{{ item.productCategory }}-{{ item.label }} x{{ item.quantity }} (¥{{ item.price * item.quantity }})
                 </div>
               </template>
             </el-table-column>
@@ -893,7 +893,9 @@ const submitOrder = async () => {
         id: item.id,
         label: item.label,
         price: item.price,
-        quantity: item.quantity
+        quantity: item.quantity,
+        category: item.category,
+        productCategory: item.productCategory
       })),
       totalPrice: totalPrice.value,
       isPaid: isPaid.value,
@@ -918,6 +920,7 @@ const submitOrder = async () => {
           items: orderData.items.map(item => ({
             category: item.category || '花馍', // 第一层分类
             subcategory: item.subcategory || '其他', // 第二层分类
+            product_category: item.productCategory || '', // 第三层分类
             product_name: item.label, // 第四层商品名称
             quantity: item.quantity,
             unit_price: item.price

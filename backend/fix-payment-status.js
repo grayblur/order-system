@@ -60,7 +60,7 @@ async function fixPaymentStatus() {
                          frontendStatus === 'partial' ? '部分付款' : '未付款';
 
       console.log(`  订单${order.id}: ${order.customer_name}`);
-      console.log(`    配送日期: ${order.delivery_date}`);
+      console.log(`    制作日期: ${order.delivery_date}`);
       console.log(`    总额: ¥${order.total_amount}, 已付: ¥${order.paid_amount}`);
       console.log(`    显示: ${displayText} (${frontendStatus})`);
       console.log('');

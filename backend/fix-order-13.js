@@ -20,7 +20,7 @@ async function fixOrder13() {
 
     console.log('📋 订单13当前信息:');
     console.log(`  客户: ${order.customer_name}`);
-    console.log(`  配送日期: ${order.delivery_date}`);
+    console.log(`  制作日期: ${order.delivery_date}`);
     console.log(`  总额: ¥${order.total_amount}`);
     console.log(`  已付: ¥${order.paid_amount}`);
     console.log(`  当前状态: ${order.payment_status}`);
@@ -47,7 +47,7 @@ async function fixOrder13() {
 
     console.log('\n✅ 修复完成！订单13的新信息:');
     console.log(`  客户: ${updatedOrder.customer_name}`);
-    console.log(`  配送日期: ${updatedOrder.delivery_date}`);
+    console.log(`  制作日期: ${updatedOrder.delivery_date}`);
     console.log(`  总额: ¥${updatedOrder.total_amount}`);
     console.log(`  已付: ¥${updatedOrder.paid_amount}`);
     console.log(`  新状态: ${updatedOrder.payment_status}`);
