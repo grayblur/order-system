@@ -490,6 +490,50 @@ const pickerOptions = {
 const searchQuery = ref('')
 const isPaid = ref(false)
 
+// 搜索商品功能
+const searchGoods = (query) => {
+  if (!query.trim()) {
+    // 如果搜索为空，恢复原始数据
+    if (originalGoodsData.value) {
+      goodsData.splice(0, goodsData.length, ...JSON.parse(JSON.stringify(originalGoodsData.value)))
+    }
+    return
+  }
+
+  const lowerQuery = query.toLowerCase()
+  const filterNodes = (nodes) => {
+    const result = []
+
+    nodes.forEach(node => {
+      if (node.isItem) {
+        // 商品节点：检查名称是否匹配
+        if (node.label.toLowerCase().includes(lowerQuery)) {
+          result.push(node)
+        }
+      } else {
+        // 分类节点：递归过滤子节点
+        const filteredChildren = filterNodes(node.children || [])
+        if (filteredChildren.length > 0) {
+          result.push({
+            ...node,
+            children: filteredChildren
+          })
+        }
+      }
+    })
+
+    return result
+  }
+
+  const filteredData = filterNodes(originalGoodsData.value || [])
+  goodsData.splice(0, goodsData.length, ...filteredData)
+}
+
+// 监听搜索输入
+watch(searchQuery, (newQuery) => {
+  searchGoods(newQuery)
+})
+
 // --- 订单管理数据 ---
 const showOrdersDialog = ref(false)
 const showPrintDialog = ref(false)
@@ -561,70 +605,105 @@ const filteredOrders = computed(() => {
   return orders.value
 })
 
-// --- 2. 商品数据 (基于 goods.json 手动整理的结构用于展示) ---
-// 在实际逻辑中，这部分应该由递归函数解析 json 生成
-const goodsData = reactive([
-  {
-    id: 'c1',
-    label: '花馍',
-    isItem: false,
-    children: [
-      {
-        id: 'c1-1',
-        label: '结婚',
-        isItem: false,
-        children: [
-          {
-            id: 'c1-1-1',
-            label: '上头糕',
-            isItem: false,
-            children: [
-              { id: 'g1', label: '百年好合', price: 398, isItem: true, selected: false, quantity: 1 },
-              { id: 'g2', label: '喜结良缘', price: 398, isItem: true, selected: false, quantity: 1 },
-              { id: 'g3', label: '龙凤喜糕', price: 280, isItem: true, selected: false, quantity: 1 },
-              { id: 'g4', label: '龙凤糕', price: 180, isItem: true, selected: false, quantity: 1 },
-            ]
-          },
-          {
-            id: 'c1-1-2',
-            label: '剃头糕',
-            isItem: false,
-            children: [
-              { id: 'g5', label: '花开富贵', price: 200, isItem: true, selected: false, quantity: 1 },
-              { id: 'g6', label: '玫瑰花海', price: 200, isItem: true, selected: false, quantity: 1 },
-              { id: 'g7', label: '多子多福', price: 80, isItem: true, selected: false, quantity: 1 },
-            ]
-          },
-          {
-             id: 'c1-1-3',
-             label: '馄饨馍',
-             isItem: false,
-             children: [
-                { id: 'g8', label: '馄饨馍 (6个)', price: 12, isItem: true, selected: false, quantity: 1 },
-                { id: 'g9', label: '馄饨馍 (12个)', price: 24, isItem: true, selected: false, quantity: 1 },
-             ]
-          }
-        ]
-      },
-      {
-        id: 'c1-2',
-        label: '订婚',
-        isItem: false,
-        children: [
-          { id: 'g10', label: '小花', price: 260, unit: '1套', isItem: true, selected: false, quantity: 1 },
-          { id: 'g11', label: '大花', price: 660, unit: '1套', isItem: true, selected: false, quantity: 1 },
-        ]
-      }
-    ]
-  }
-])
+// --- 2. 商品数据 (从后端API动态加载) ---
+const goodsData = reactive([])
+const originalGoodsData = ref(null) // 保存原始数据用于搜索重置
 
 const defaultProps = {
   children: 'children',
   label: 'label',
 }
 
-// --- 3. 计算属性：获取所有被选中的商品 ---
+// --- 3. 商品数据加载和处理 ---
+// 将后端API数据转换为前端树形结构
+const convertGoodsDataToTree = (apiData) => {
+  const result = []
+  let nodeId = 1
+
+  Object.keys(apiData).forEach(categoryName => {
+    const categoryData = apiData[categoryName]
+    const categoryNode = {
+      id: `c_${nodeId++}`,
+      label: categoryName,
+      isItem: false,
+      children: []
+    }
+
+    Object.keys(categoryData).forEach(subcategoryName => {
+      const subcategoryItems = categoryData[subcategoryName]
+      const subcategoryNode = {
+        id: `sc_${nodeId++}`,
+        label: subcategoryName,
+        isItem: false,
+        children: []
+      }
+
+      // 处理商品列表，按第三层分类分组
+      const productGroups = {}
+
+      subcategoryItems.forEach(product => {
+        const thirdLevelCategory = product.category || '其他'
+
+        if (!productGroups[thirdLevelCategory]) {
+          productGroups[thirdLevelCategory] = []
+        }
+
+        productGroups[thirdLevelCategory].push({
+          id: `p_${nodeId++}`,
+          label: product.name,
+          price: product.price,
+          isItem: true,
+          selected: false,
+          quantity: 1,
+          unit: product.unit || '个',
+          category: categoryName, // 第一层分类
+          subcategory: subcategoryName, // 第二层分类
+          productCategory: thirdLevelCategory // 第三层分类
+        })
+      })
+
+      // 将分组后的商品转换为树节点
+      Object.keys(productGroups).forEach(thirdLevelName => {
+        const thirdLevelNode = {
+          id: `tl_${nodeId++}`,
+          label: thirdLevelName,
+          isItem: false,
+          children: productGroups[thirdLevelName]
+        }
+        subcategoryNode.children.push(thirdLevelNode)
+      })
+
+      categoryNode.children.push(subcategoryNode)
+    })
+
+    result.push(categoryNode)
+  })
+
+  return result
+}
+
+// 加载商品数据
+const loadGoodsData = async () => {
+  try {
+    const response = await fetch('/api/goods')
+    const result = await response.json()
+
+    if (result.success && result.data) {
+      const treeData = convertGoodsDataToTree(result.data)
+      goodsData.splice(0, goodsData.length, ...treeData)
+      originalGoodsData.value = JSON.parse(JSON.stringify(treeData))
+      console.log('✅ 商品数据加载成功:', treeData)
+    } else {
+      ElMessage.error('加载商品数据失败')
+      console.error('商品数据API返回错误:', result)
+    }
+  } catch (error) {
+    console.error('加载商品数据失败:', error)
+    ElMessage.error('网络错误，无法加载商品数据')
+  }
+}
+
+// --- 4. 计算属性：获取所有被选中的商品 ---
 // 简单的递归查找，用于UI展示
 const getSelectedNodes = (nodes) => {
   let result = []
@@ -641,12 +720,12 @@ const getSelectedNodes = (nodes) => {
 
 const selectedItems = computed(() => getSelectedNodes(goodsData))
 
-// --- 4. 计算属性：总价 ---
+// --- 5. 计算属性：总价 ---
 const totalPrice = computed(() => {
   return selectedItems.value.reduce((sum, item) => sum + (item.price * item.quantity), 0)
 })
 
-// --- 5. 交互方法 (仅UI效果) ---
+// --- 6. 交互方法 (仅UI效果) ---
 const handleCheckChange = (data) => {
   // 如果取消勾选，重置数量为1
   if (!data.selected) {
@@ -665,7 +744,7 @@ const handleNodeClick = (data) => {
   }
 }
 
-// --- 6. 订单管理方法 ---
+// --- 7. 订单管理方法 ---
 const filterOrdersByDate = () => {
   // 日期变化时重新加载数据（从第一页开始）
   pagination.page = 1
@@ -823,11 +902,9 @@ const submitOrder = async () => {
           notes: orderData.notes,
           isPaid: orderData.isPaid,
           items: orderData.items.map(item => ({
-            category: '花馍', // 默认分类
-            subcategory: item.label.includes('上头糕') ? '上头糕' :
-                       item.label.includes('剃头糕') ? '剃头糕' :
-                       item.label.includes('馄饨') ? '馄饨馍' : '其他',
-            product_name: item.label,
+            category: item.category || '花馍', // 第一层分类
+            subcategory: item.subcategory || '其他', // 第二层分类
+            product_name: item.label, // 第四层商品名称
             quantity: item.quantity,
             unit_price: item.price
           }))
@@ -972,7 +1049,10 @@ const restoreGoodsSelection = (savedSelectedItems) => {
 }
 
 // 页面加载时恢复数据
-onMounted(() => {
+onMounted(async () => {
+  // 先加载商品数据
+  await loadGoodsData()
+
   // 从localStorage恢复数据
   const savedData = loadFromStorage()
   if (savedData) {

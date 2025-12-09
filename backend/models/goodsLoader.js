@@ -1,6 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 
+
 class GoodsLoader {
   constructor() {
     this.goodsData = null;
@@ -54,28 +55,51 @@ class GoodsLoader {
           tree[categoryName][subcategoryName] = [];
         }
 
-        // 处理产品数据
+        // 处理产品数据 - 第三层是分类，第四层是具体商品
         products.forEach(productItem => {
-          const productName = Object.keys(productItem)[0];
-          const productValue = productItem[productName];
+          const productCategoryName = Object.keys(productItem)[0];
+          const productItems = productItem[productCategoryName];
 
-          const product = {
-            name: productName
-          };
-
-          // 处理不同的价格格式
-          if (typeof productValue === 'number') {
-            product.price = productValue;
-          } else if (Array.isArray(productValue)) {
-            // 格式: ["1套", 260] 或类似的
-            product.unit = productValue[0];
-            product.price = productValue[1] || 0;
-          } else if (typeof productValue === 'object') {
-            product.unit = productValue.unit || '个';
-            product.price = productValue.price || 0;
+          // 处理第四层的具体商品
+          if (Array.isArray(productItems)) {
+            if (productItems.length >= 2 && typeof productItems[0] === 'string') {
+              // 格式如 ["1套", 260]
+              const productName = productItems[0];
+              const productPrice = productItems[1];
+              const product = {
+                name: productName,
+                price: productPrice,
+                category: productCategoryName // 保留第三层分类信息
+              };
+              tree[categoryName][subcategoryName].push(product);
+            } else {
+              // 格式如 [{"百年好合":398}, {"喜结良缘":398}]
+              productItems.forEach(item => {
+                if (typeof item === 'object' && !Array.isArray(item)) {
+                  Object.keys(item).forEach(productName => {
+                    const productPrice = item[productName];
+                    const product = {
+                      name: productName,
+                      price: productPrice,
+                      category: productCategoryName // 保留第三层分类信息
+                    };
+                    tree[categoryName][subcategoryName].push(product);
+                  });
+                }
+              });
+            }
+          } else if (typeof productItems === 'object' && productItems !== null) {
+            // 格式如 {"百年好合":398, "喜结良缘":398}
+            Object.keys(productItems).forEach(productName => {
+              const productPrice = productItems[productName];
+              const product = {
+                name: productName,
+                price: productPrice,
+                category: productCategoryName // 保留第三层分类信息
+              };
+              tree[categoryName][subcategoryName].push(product);
+            });
           }
-
-          tree[categoryName][subcategoryName].push(product);
         });
       });
     });
@@ -103,29 +127,57 @@ class GoodsLoader {
         const products = subcategoryItem[subcategoryName];
 
         products.forEach(productItem => {
-          const productName = Object.keys(productItem)[0];
-          const productValue = productItem[productName];
+          const productCategoryName = Object.keys(productItem)[0];
+          const productItems = productItem[productCategoryName];
 
-          const item = {
-            id: id++,
-            category: categoryName,
-            subcategory: subcategoryName,
-            product_name: productName,
-            unit: '个'
-          };
-
-          // 处理价格和单位
-          if (typeof productValue === 'number') {
-            item.price = productValue;
-          } else if (Array.isArray(productValue)) {
-            item.unit = productValue[0];
-            item.price = productValue[1] || 0;
-          } else if (typeof productValue === 'object') {
-            item.unit = productValue.unit || '个';
-            item.price = productValue.price || 0;
+          // 处理第四层的具体商品
+          if (Array.isArray(productItems)) {
+            if (productItems.length >= 2 && typeof productItems[0] === 'string') {
+              // 格式如 ["1套", 260]
+              const productName = productItems[0];
+              const productPrice = productItems[1];
+              flatList.push({
+                id: id++,
+                category: categoryName,
+                subcategory: subcategoryName,
+                product_category: productCategoryName, // 第三层分类
+                product_name: productName, // 第四层商品名
+                price: productPrice,
+                unit: productName // 使用商品名作为单位
+              });
+            } else {
+              // 格式如 [{"百年好合":398}, {"喜结良缘":398}]
+              productItems.forEach(item => {
+                if (typeof item === 'object' && !Array.isArray(item)) {
+                  Object.keys(item).forEach(productName => {
+                    const productPrice = item[productName];
+                    flatList.push({
+                      id: id++,
+                      category: categoryName,
+                      subcategory: subcategoryName,
+                      product_category: productCategoryName, // 第三层分类
+                      product_name: productName, // 第四层商品名
+                      price: productPrice,
+                      unit: '个'
+                    });
+                  });
+                }
+              });
+            }
+          } else if (typeof productItems === 'object' && productItems !== null) {
+            Object.keys(productItems).forEach(productName => {
+              const productPrice = productItems[productName];
+              flatList.push({
+                id: id++,
+                category: categoryName,
+                subcategory: subcategoryName,
+                product_category: productCategoryName, // 第三层分类
+                product_name: productName, // 第四层商品名
+                price: productPrice,
+                unit: '个'
+              });
+            });
           }
-
-          flatList.push(item);
         });
       });
     });
@@ -181,27 +233,54 @@ class GoodsLoader {
     }
 
     const products = subcategoryItem[subcategory];
-    return products.map(productItem => {
-      const productName = Object.keys(productItem)[0];
-      const productValue = productItem[productName];
+    const result = [];
 
-      const product = {
-        name: productName
-      };
+    products.forEach(productItem => {
+      const productCategoryName = Object.keys(productItem)[0];
+      const productItems = productItem[productCategoryName];
 
-      if (typeof productValue === 'number') {
-        product.price = productValue;
-        product.unit = '个';
-      } else if (Array.isArray(productValue)) {
-        product.unit = productValue[0];
-        product.price = productValue[1] || 0;
-      } else if (typeof productValue === 'object') {
-        product.unit = productValue.unit || '个';
-        product.price = productValue.price || 0;
+      // 处理第四层的具体商品
+      if (Array.isArray(productItems)) {
+        if (productItems.length >= 2 && typeof productItems[0] === 'string') {
+          // 格式如 ["1套", 260]
+          const productName = productItems[0];
+          const productPrice = productItems[1];
+          result.push({
+            name: productName,
+            price: productPrice,
+            category: productCategoryName,
+            unit: productName
+          });
+        } else {
+          // 格式如 [{"百年好合":398}, {"喜结良缘":398}]
+          productItems.forEach(item => {
+            if (typeof item === 'object' && !Array.isArray(item)) {
+              Object.keys(item).forEach(productName => {
+                const productPrice = item[productName];
+                result.push({
+                  name: productName,
+                  price: productPrice,
+                  category: productCategoryName,
+                  unit: '个'
+                });
+              });
+            }
+          });
+        }
+      } else if (typeof productItems === 'object' && productItems !== null) {
+        Object.keys(productItems).forEach(productName => {
+          const productPrice = productItems[productName];
+          result.push({
+            name: productName,
+            price: productPrice,
+            category: productCategoryName,
+            unit: '个'
+          });
+        });
       }
-
-      return product;
     });
+
+    return result;
   }
 
   /**
@@ -224,33 +303,49 @@ class GoodsLoader {
         const products = subcategoryItem[subcategoryName];
 
         products.forEach(productItem => {
-          const productName = Object.keys(productItem)[0];
-          const productValue = productItem[productName];
+          const productCategoryName = Object.keys(productItem)[0];
+          const productItems = productItem[productCategoryName];
 
-          // 检查名称或分类是否匹配
-          if (
-            productName.toLowerCase().includes(lowerKeyword) ||
-            categoryName.toLowerCase().includes(lowerKeyword) ||
-            subcategoryName.toLowerCase().includes(lowerKeyword)
-          ) {
-            const product = {
-              name: productName,
-              category: categoryName,
-              subcategory: subcategoryName
-            };
-
-            if (typeof productValue === 'number') {
-              product.price = productValue;
-              product.unit = '个';
-            } else if (Array.isArray(productValue)) {
-              product.unit = productValue[0];
-              product.price = productValue[1] || 0;
-            } else if (typeof productValue === 'object') {
-              product.unit = productValue.unit || '个';
-              product.price = productValue.price || 0;
+          // 处理第四层的具体商品
+          const processProduct = (productName, productPrice) => {
+            // 检查名称或分类是否匹配
+            if (
+              productName.toLowerCase().includes(lowerKeyword) ||
+              productCategoryName.toLowerCase().includes(lowerKeyword) ||
+              categoryName.toLowerCase().includes(lowerKeyword) ||
+              subcategoryName.toLowerCase().includes(lowerKeyword)
+            ) {
+              results.push({
+                name: productName,
+                price: productPrice,
+                category: categoryName,
+                subcategory: subcategoryName,
+                product_category: productCategoryName,
+                unit: '个'
+              });
             }
+          };
 
-            results.push(product);
+          if (Array.isArray(productItems)) {
+            if (productItems.length >= 2 && typeof productItems[0] === 'string') {
+              // 格式如 ["1套", 260]
+              const productName = productItems[0];
+              const productPrice = productItems[1];
+              processProduct(productName, productPrice);
+            } else {
+              // 格式如 [{"百年好合":398}, {"喜结良缘":398}]
+              productItems.forEach(item => {
+                if (typeof item === 'object' && !Array.isArray(item)) {
+                  Object.keys(item).forEach(productName => {
+                    processProduct(productName, item[productName]);
+                  });
+                }
+              });
+            }
+          } else if (typeof productItems === 'object' && productItems !== null) {
+            Object.keys(productItems).forEach(productName => {
+              processProduct(productName, productItems[productName]);
+            });
           }
         });
       });
