@@ -279,12 +279,29 @@
               </template>
             </el-table-column>
           </el-table>
+
+          <!-- 分页组件 -->
+          <div class="pagination-container">
+            <el-pagination
+              v-model:current-page="pagination.page"
+              :page-size="pagination.limit"
+              :total="pagination.total"
+              layout="total, prev, pager, next"
+              @current-change="handlePageChange"
+            />
+          </div>
         </div>
 
         <!-- 空状态 -->
         <el-empty v-else description="暂无订单数据" :image-size="100" />
       </div>
     </el-dialog>
+
+    <!-- 打印清单弹窗 -->
+    <PrintDialog
+      v-model="showPrintDialog"
+      @confirm-print="handlePrintConfirm"
+    />
   </div>
 </template>
 
@@ -292,6 +309,8 @@
 import { ref, computed, reactive, nextTick, onMounted, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { User, Goods, Search, Printer, Check, Delete, View } from '@element-plus/icons-vue'
+import PrintDialog from './components/PrintDialog.vue'
+import dayjs from 'dayjs'
 
 const customerFormRef = ref()
 
@@ -473,15 +492,35 @@ const isPaid = ref(false)
 
 // --- 订单管理数据 ---
 const showOrdersDialog = ref(false)
+const showPrintDialog = ref(false)
 const selectedDate = ref(null)
 
 // 订单数据
 const orders = ref([])
 
+// 分页数据
+const pagination = reactive({
+  page: 1,
+  limit: 15,
+  total: 0
+})
+
 // 加载订单数据
-const loadOrders = async () => {
+const loadOrders = async (page = 1) => {
   try {
-    const response = await fetch('/api/orders')
+    // 构建查询参数
+    let url = `/api/orders?page=${page}&limit=${pagination.limit}`
+
+    // 如果有日期筛选，添加日期参数
+    if (selectedDate.value) {
+      const year = selectedDate.value.getFullYear()
+      const month = String(selectedDate.value.getMonth() + 1).padStart(2, '0')
+      const day = String(selectedDate.value.getDate()).padStart(2, '0')
+      const dateStr = `${year}-${month}-${day}`
+      url += `&date=${dateStr}`
+    }
+
+    const response = await fetch(url)
     const result = await response.json()
 
     if (result.success) {
@@ -497,6 +536,12 @@ const loadOrders = async () => {
         notes: order.notes,
         itemCount: order.item_count
       }))
+
+      // 更新分页信息
+      if (result.pagination) {
+        pagination.page = result.pagination.page
+        pagination.total = result.pagination.total
+      }
     } else {
       ElMessage.error('加载订单失败')
     }
@@ -506,19 +551,14 @@ const loadOrders = async () => {
   }
 }
 
-// 根据日期筛选的订单
+// 分页切换
+const handlePageChange = (page) => {
+  loadOrders(page)
+}
+
+// 根据日期筛选的订单（分页后直接使用 orders 数据）
 const filteredOrders = computed(() => {
-  if (!selectedDate.value) {
-    return orders.value
-  }
-
-  // 获取本地日期字符串，避免时区问题
-  const year = selectedDate.value.getFullYear()
-  const month = String(selectedDate.value.getMonth() + 1).padStart(2, '0')
-  const day = String(selectedDate.value.getDate()).padStart(2, '0')
-  const dateStr = `${year}-${month}-${day}`
-
-  return orders.value.filter(order => order.deliveryDate === dateStr)
+  return orders.value
 })
 
 // --- 2. 商品数据 (基于 goods.json 手动整理的结构用于展示) ---
@@ -627,11 +667,16 @@ const handleNodeClick = (data) => {
 
 // --- 6. 订单管理方法 ---
 const filterOrdersByDate = () => {
-  // 日期变化时自动触发computed重新计算
+  // 日期变化时重新加载数据（从第一页开始）
+  pagination.page = 1
+  loadOrders(1)
 }
 
 const clearDateFilter = () => {
   selectedDate.value = null
+  // 清空筛选后重新加载数据（从第一页开始）
+  pagination.page = 1
+  loadOrders(1)
 }
 
 const handleShowOrders = async () => {
@@ -819,13 +864,65 @@ const submitOrder = async () => {
 
 // 打印处理
 const handlePrint = () => {
-  if (selectedItems.value.length === 0) {
-    ElMessage.warning('请先选择商品')
-    return
-  }
+  // 打开打印日期选择弹窗
+  showPrintDialog.value = true
+}
 
-  // 触发浏览器打印
-  window.print()
+// 处理打印确认
+const handlePrintConfirm = async (selectedDate) => {
+  try {
+    // 将日期格式化为 YYYY-MM-DD
+    const dateStr = dayjs(selectedDate).format('YYYY-MM-DD')
+
+    // 先调用后端API记录打印
+    ElMessage.info('正在记录打印操作...')
+
+    const printResponse = await fetch('/api/orders/print', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        print_date: dateStr,
+        print_type: 'production_list',
+        notes: '花馍订单生产清单打印'
+      })
+    })
+
+    const printResult = await printResponse.json()
+
+    if (!printResult.success) {
+      ElMessage.error(`打印记录失败: ${printResult.error}`)
+      return
+    }
+
+    // 打印记录成功后，显示成功消息并打开打印预览
+    ElMessage.success(`打印记录成功，共 ${printResult.data.order_count} 个订单`)
+
+    // 跳转到打印预览页面，并传递日期参数
+    const printUrl = `/print/${dateStr}`
+
+    // 打开新窗口进行打印预览
+    const printWindow = window.open(printUrl, '_blank')
+
+    if (!printWindow) {
+      ElMessage.warning('请允许弹出窗口以打印清单')
+      return
+    }
+
+    ElMessage.success('正在准备打印清单...')
+
+    // 等待页面加载完成后触发打印
+    printWindow.addEventListener('load', () => {
+      setTimeout(() => {
+        printWindow.print()
+      }, 500)
+    })
+
+  } catch (error) {
+    console.error('打印失败:', error)
+    ElMessage.error('打印失败，请重试')
+  }
 }
 
 // 重置表单
@@ -1331,6 +1428,17 @@ watch(
 
       .el-tag {
         font-weight: 500;
+      }
+    }
+
+    .pagination-container {
+      margin-top: 20px;
+      display: flex;
+      justify-content: center;
+
+      .el-pagination {
+        --el-pagination-button-color: #E74C3C;
+        --el-pagination-hover-color: #c0392b;
       }
     }
   }

@@ -80,6 +80,19 @@ class DatabaseManager {
         )
       `);
 
+      // 创建打印记录表
+      this.run(`
+        CREATE TABLE IF NOT EXISTS print_records (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          print_date TEXT NOT NULL,
+          print_type TEXT NOT NULL DEFAULT 'production_list',
+          status TEXT NOT NULL DEFAULT 'success',
+          order_count INTEGER DEFAULT 0,
+          printed_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          notes TEXT
+        )
+      `);
+
       console.log('数据库表结构初始化完成');
 
       // 检查是否需要导入初始数据

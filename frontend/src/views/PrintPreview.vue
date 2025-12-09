@@ -66,42 +66,46 @@ import dayjs from 'dayjs'
 
 const route = useRoute()
 
-// 模拟订单数据
-const orders = ref([
-  {
-    id: 1,
-    customerInfo: {
-      name: '张三',
-      phone: '13800138000',
-      address: '北京市朝阳区xxx街道',
-      deliveryDate: '2024-01-15',
-      notes: '请提前1小时联系'
-    },
-    items: [
-      { id: 1, name: '上头糕', price: 168, quantity: 2 },
-      { id: 2, name: '剃头糕', price: 128, quantity: 1 }
-    ],
-    totalAmount: 464,
-    paidAmount: 200,
-    paymentStatus: 'partial'
-  },
-  {
-    id: 2,
-    customerInfo: {
-      name: '李四',
-      phone: '13900139000',
-      address: '北京市海淀区xxx街道',
-      deliveryDate: '2024-01-15',
-      notes: ''
-    },
-    items: [
-      { id: 3, name: '订婚糕', price: 98, quantity: 3 }
-    ],
-    totalAmount: 294,
-    paidAmount: 294,
-    paymentStatus: 'paid'
+// 订单数据
+const orders = ref([])
+
+// 加载指定日期的订单数据
+const loadOrdersForDate = async (date) => {
+  try {
+    const response = await fetch(`/api/orders/production/${date}`)
+    const result = await response.json()
+
+    if (result.success) {
+      // 转换API数据格式为前端期望的格式
+      orders.value = result.data.map((order, index) => ({
+        id: index + 1, // 使用索引作为ID，因为API返回的数据结构不同
+        customerInfo: {
+          name: order.customer_info.name,
+          phone: order.customer_info.phone,
+          address: order.customer_info.address,
+          deliveryDate: order.customer_info.delivery_date,
+          notes: order.customer_info.notes || ''
+        },
+        items: order.items.map((item, itemIndex) => ({
+          id: itemIndex + 1,
+          name: item.name,
+          price: item.unit_price,
+          quantity: item.quantity
+        })),
+        totalAmount: order.customer_info.total_amount,
+        paidAmount: order.customer_info.paid_amount,
+        paymentStatus: order.customer_info.payment_status === '已支付' ? 'paid' :
+                      order.customer_info.payment_status === '部分支付' ? 'partial' : 'unpaid'
+      }))
+    } else {
+      console.error('加载订单失败:', result.error)
+      orders.value = []
+    }
+  } catch (error) {
+    console.error('加载订单失败:', error)
+    orders.value = []
   }
-])
+}
 
 const selectedDate = computed(() => {
   const dateParam = route.params.date
@@ -149,7 +153,8 @@ const print = () => {
 }
 
 onMounted(() => {
-  // 这里应该从API加载指定日期的订单数据
+  // 从API加载指定日期的订单数据
+  loadOrdersForDate(selectedDate.value)
 })
 </script>
 
