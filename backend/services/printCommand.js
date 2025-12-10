@@ -350,7 +350,7 @@ const printCommand = {
           <table>
             <thead>
               <tr>
-                <th style="width: 20%;">客户信息 (姓名/地址)</th>
+                <th style="width: 20%;">客户</th>
                 <th style="width: 12%;">联系电话</th>
                 <th style="width: 28%;">商品信息</th>
                 <th style="width: 10%;">金额</th>

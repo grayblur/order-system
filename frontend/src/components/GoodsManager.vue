@@ -38,12 +38,14 @@
       <!-- 表格 -->
       <div class="goods-table-wrapper">
         <el-table
+          ref="goodsTableRef"
           :data="filteredGoods"
           stripe
           style="width: 100%"
           row-key="id"
           :default-expand-all="false"
           :tree-props="{ children: 'children', hasChildren: 'hasChildren' }"
+          @row-click="handleRowClick"
         >
           <!-- 商品名称列 -->
           <el-table-column prop="label" label="商品名称" min-width="200">
@@ -125,7 +127,7 @@
                   size="small"
                   type="primary"
                   link
-                  @click="handleEdit(row)"
+                  @click.stop="handleEdit(row)"
                 >
                   <el-icon><Edit /></el-icon>
                   编辑
@@ -135,19 +137,31 @@
                   size="small"
                   type="success"
                   link
-                  @click="handleSaveCell(row)"
+                  @click.stop="handleSaveCell(row)"
                 >
                   <el-icon><Check /></el-icon>
                   保存
                 </el-button>
 
-                <!-- 添加子项按钮 -->
+                <!-- 添加子分类按钮（仅第1层和第2层显示） -->
                 <el-button
-                  v-if="row.isCategory"
+                  v-if="row.isCategory && !row.productCategory"
+                  size="small"
+                  type="warning"
+                  link
+                  @click.stop="handleAddSubcategory(row)"
+                >
+                  <el-icon><Plus /></el-icon>
+                  添加子分类
+                </el-button>
+
+                <!-- 添加商品按钮（第3层商品分类显示） -->
+                <el-button
+                  v-if="row.isCategory && row.productCategory"
                   size="small"
                   type="success"
                   link
-                  @click="handleAddItem(row)"
+                  @click.stop="handleAddProduct(row)"
                 >
                   <el-icon><Plus /></el-icon>
                   添加商品
@@ -161,7 +175,7 @@
                   @confirm="handleDelete(row)"
                 >
                   <template #reference>
-                    <el-button size="small" type="danger" link>
+                    <el-button size="small" type="danger" link @click.stop>
                       <el-icon><Delete /></el-icon>
                       删除
                     </el-button>
@@ -199,6 +213,7 @@ import { Plus, Edit, Delete, Check, Download, Search } from '@element-plus/icons
 
 const visible = ref(false)
 const searchText = ref('')
+const goodsTableRef = ref()
 
 // 商品数据
 const goodsData = reactive([])
@@ -216,6 +231,24 @@ const open = () => {
 const handleClose = () => {
   visible.value = false
   searchText.value = ''
+}
+
+// 处理行点击事件 - 切换展开/收起
+const handleRowClick = (row, column, event) => {
+  // 如果正在编辑该行，不触发展开/收起
+  if (row.editId === row.id) {
+    return
+  }
+
+  // 如果点击的是操作列，不触发展开/收起
+  if (column && column.label === '操作') {
+    return
+  }
+
+  // 如果点击的是分类行，切换展开状态
+  if (row.isCategory) {
+    goodsTableRef.value.toggleRowExpansion(row)
+  }
 }
 
 // 加载商品数据
@@ -390,9 +423,44 @@ const handleAddCategory = async () => {
   }
 }
 
-// 新增商品
-const handleAddItem = async (categoryRow) => {
-  const { value: itemName } = await ElMessageBox.prompt(
+// 新增子分类（第2层或第3层）
+const handleAddSubcategory = async (categoryRow) => {
+  const { value: subcategoryName } = await ElMessageBox.prompt(
+    '请输入子分类名称',
+    '新增子分类',
+    {
+      confirmButtonText: '确定',
+      cancelButtonText: '取消',
+      inputPattern: /^.{1,20}$/,
+      inputErrorMessage: '子分类名称长度应在 1-20 个字符'
+    }
+  ).catch(() => ({ value: null }))
+
+  if (subcategoryName) {
+    const newSubcategory = {
+      id: `sc_${Date.now()}`,
+      label: subcategoryName,
+      isCategory: true,
+      hasChildren: true,
+      children: [],
+      editId: null,
+      category: categoryRow.category || categoryRow.label,
+      subcategory: categoryRow.subcategory || subcategoryName,
+      productCategory: categoryRow.subcategory ? subcategoryName : undefined
+    }
+
+    if (!categoryRow.children) {
+      categoryRow.children = []
+    }
+
+    categoryRow.children.push(newSubcategory)
+    ElMessage.success('子分类新增成功')
+  }
+}
+
+// 新增商品（第4层）
+const handleAddProduct = async (categoryRow) => {
+  const { value: productName } = await ElMessageBox.prompt(
     '请输入商品名称',
     '新增商品',
     {
@@ -401,27 +469,30 @@ const handleAddItem = async (categoryRow) => {
     }
   ).catch(() => ({ value: null }))
 
-  if (itemName) {
-    const newItem = {
+  if (productName) {
+    const newProduct = {
       id: `p_${Date.now()}`,
-      label: itemName,
+      label: productName,
       price: 0,
       unit: '个',
       isCategory: false,
       editId: null,
-      category: categoryRow.label,
-      subcategory: categoryRow.subcategory || categoryRow.label
+      category: categoryRow.category,
+      subcategory: categoryRow.subcategory,
+      productCategory: categoryRow.label
     }
 
-    // 如果是顶级分类，则添加到该分类下
     if (!categoryRow.children) {
       categoryRow.children = []
     }
 
-    categoryRow.children.push(newItem)
+    categoryRow.children.push(newProduct)
     ElMessage.success('商品新增成功，请编辑设置价格')
   }
 }
+
+// 保持原来的函数名（向后兼容）
+const handleAddItem = handleAddProduct
 
 // 删除操作
 const handleDelete = async (row) => {
