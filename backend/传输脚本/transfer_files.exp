@@ -1,0 +1,32 @@
+#!/usr/bin/expect -f
+
+set timeout 30
+set password "123456"
+
+# 创建目标目录
+spawn ssh -o StrictHostKeyChecking=no root@192.168.0.110 "mkdir -p /opt/order-system-backend"
+expect {
+    "password:" {
+        send "$password\r"
+        exp_continue
+    }
+    "Password:" {
+        send "$password\r"
+        exp_continue
+    }
+    eof
+}
+
+# 传输文件，排除数据库和node_modules
+spawn scp -r -o StrictHostKeyChecking=no [glob *.js] [glob *.json] [glob *.md] [glob *.sh] [glob .env*] [glob Dockerfile*] [glob .gitignore] models routes services utils resources root@192.168.0.110:/opt/order-system-backend/
+expect {
+    "password:" {
+        send "$password\r"
+        exp_continue
+    }
+    "Password:" {
+        send "$password\r"
+        exp_continue
+    }
+    eof
+}
