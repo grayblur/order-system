@@ -33,18 +33,37 @@ fi
 # 检查 Node.js 版本
 echo "📋 检查 Node.js 环境..."
 if ! command -v node &> /dev/null; then
-    echo "📦 安装 Node.js..."
+    echo "📦 安装 Node.js 20.x..."
     curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
     apt-get install -y nodejs
 else
     NODE_VERSION=$(node -v | cut -d'v' -f2)
-    echo "✅ Node.js 版本: $NODE_VERSION"
+    NODE_MAJOR=$(echo $NODE_VERSION | cut -d'.' -f1)
+    echo "✅ 当前 Node.js 版本: $NODE_VERSION"
+
+    # 检查版本是否满足要求（需要 Node.js 18+）
+    if [ "$NODE_MAJOR" -lt 18 ]; then
+        echo "⚠️  Node.js 版本过低，需要 18+ 版本"
+        echo "🔄 升级 Node.js 到 20.x..."
+        curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
+        apt-get install -y nodejs --upgrade
+        echo "✅ Node.js 升级完成: $(node -v)"
+    fi
+fi
+
+# 检查 npm 版本
+if command -v npm &> /dev/null; then
+    NPM_VERSION=$(npm -v)
+    echo "✅ npm 版本: $NPM_VERSION"
+else
+    echo "❌ npm 未安装"
+    exit 1
 fi
 
 # 安装系统依赖
 echo "📦 安装系统依赖..."
 apt-get update
-apt-get install -y curl better-sqlite3
+apt-get install -y curl sqlite3 build-essential python3 make g++
 
 # 创建应用用户
 echo "👤 创建应用用户..."
@@ -84,27 +103,56 @@ chmod 755 "$APP_DIR"
 find "$APP_DIR" -type f -name "*.js" -exec chmod 644 {} \;
 find "$APP_DIR" -type f -name "*.json" -exec chmod 644 {} \;
 
-# 安装 Node.js 依赖（只安装一次，检测到更新时重新安装）
-echo "📦 检查并安装 Node.js 依赖..."
+# 安装 Node.js 依赖
+echo "📦 安装 Node.js 依赖..."
 cd "$APP_DIR"
 
-# 检查是否需要重新安装依赖
-if [ ! -d "node_modules" ] || [ "package-lock.json" -nt "node_modules" ]; then
-    echo "📦 检测到依赖更新，重新安装..."
-    sudo -u "$APP_USER" npm ci --production --no-optional
+# 设置 npm 配置（ARM 架构优化）
+echo "⚙️ 配置 npm 设置..."
+if [[ "$ARCH" == "aarch64" || "$ARCH" == "armv7l" || "$ARCH" == "arm64" ]]; then
+    sudo -u "$APP_USER" npm config set registry https://registry.npmmirror.com
+    echo "✅ 使用中国镜像源 (ARM 优化)"
+fi
+
+# 清理可能存在的旧依赖
+if [ -d "node_modules" ]; then
+    echo "🧹 清理旧依赖..."
+    rm -rf node_modules
+fi
+
+# 安装依赖（包含开发依赖，用于构建 better-sqlite3）
+echo "📦 安装项目依赖..."
+if sudo -u "$APP_USER" npm install --legacy-peer-deps; then
+    echo "✅ 依赖安装成功"
 else
-    echo "✅ 依赖已存在且最新，跳过安装"
+    echo "❌ 依赖安装失败，尝试备用方案..."
+    # 备用安装方案
+    sudo -u "$APP_USER" npm install --production --legacy-peer-deps --no-optional
+fi
+
+# 验证关键依赖是否安装成功
+echo "🔍 验证依赖..."
+if sudo -u "$APP_USER" node -e "require('better-sqlite3')" 2>/dev/null; then
+    echo "✅ better-sqlite3 安装成功"
+else
+    echo "❌ better-sqlite3 安装失败，尝试重新编译..."
+    sudo -u "$APP_USER" npm rebuild better-sqlite3 --runtime=node
 fi
 
 # 创建生产环境配置
-echo "⚙️  创建生产环境配置..."
-cat > "$APP_DIR/.env" << EOF
+echo "⚙️ 创建生产环境配置..."
+# 先检查是否已有生产配置文件
+if [ -f "$APP_DIR/.env.production" ]; then
+    echo "📋 发现现有生产配置，基于其创建配置..."
+    cp "$APP_DIR/.env.production" "$APP_DIR/.env"
+else
+    cat > "$APP_DIR/.env" << EOF
 NODE_ENV=production
 PORT=3000
 DB_PATH=$DATA_DIR/database.db
 LOG_LEVEL=info
 LOG_FILE=$LOG_DIR/app.log
-ALLOWED_ORIGINS=http://localhost,http://127.0.0.1
+ALLOWED_ORIGINS=http://localhost,http://127.0.0.1,http://$(hostname -I | awk '{print $1}'):5173
 SESSION_SECRET=$(openssl rand -hex 32)
 MAX_CONNECTIONS=100
 CONNECTION_TIMEOUT=30000
@@ -112,6 +160,12 @@ BACKUP_ENABLED=true
 BACKUP_PATH=$BACKUP_DIR
 BACKUP_INTERVAL=86400000
 EOF
+fi
+
+# 更新配置中的路径
+sed -i "s|DB_PATH=.*|DB_PATH=$DATA_DIR/database.db|g" "$APP_DIR/.env"
+sed -i "s|LOG_FILE=.*|LOG_FILE=$LOG_DIR/app.log|g" "$APP_DIR/.env"
+sed -i "s|BACKUP_PATH=.*|BACKUP_PATH=$BACKUP_DIR|g" "$APP_DIR/.env"
 
 # 设置配置文件权限
 chown "$APP_USER:$APP_USER" "$APP_DIR/.env"
@@ -158,6 +212,7 @@ SyslogIdentifier=$SERVICE_NAME
 
 # 环境变量
 Environment=NODE_ENV=production
+EnvironmentFile=$APP_DIR/.env
 
 # 安全设置
 NoNewPrivileges=true
@@ -170,6 +225,10 @@ ReadWritePaths=$DATA_DIR $LOG_DIR $BACKUP_DIR
 LimitNOFILE=65535
 MemoryMax=512M
 CPUQuota=50%
+
+# 超时设置
+TimeoutStartSec=60
+TimeoutStopSec=30
 
 [Install]
 WantedBy=multi-user.target
@@ -260,23 +319,58 @@ sleep 5
 
 # 验证部署
 echo "✅ 验证部署..."
-if systemctl is-active --quiet "$SERVICE_NAME"; then
-    echo "✅ 系统服务运行正常"
-else
-    echo "❌ 系统服务启动失败"
-    echo "错误日志:"
-    journalctl -u "$SERVICE_NAME" --no-pager -n 20
-    exit 1
-fi
 
-# 测试 API
-API_STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:3000/health 2>/dev/null || echo "连接失败")
-if [ "$API_STATUS" = "200" ]; then
-    echo "✅ API 服务运行正常"
+# 等待服务完全启动
+echo "⏳ 等待服务完全启动..."
+for i in {1..30}; do
+    if systemctl is-active --quiet "$SERVICE_NAME"; then
+        echo "✅ 系统服务启动成功"
+        break
+    fi
+    if [ $i -eq 30 ]; then
+        echo "❌ 系统服务启动超时"
+        echo "错误日志:"
+        journalctl -u "$SERVICE_NAME" --no-pager -n 50
+        exit 1
+    fi
+    sleep 2
+    echo "   等待中... ($i/30)"
+done
+
+# 测试 API 健康检查
+echo "🔍 测试 API 健康检查..."
+for i in {1..10}; do
+    API_STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:3000/health 2>/dev/null || echo "连接失败")
+    if [ "$API_STATUS" = "200" ]; then
+        echo "✅ API 服务运行正常 (HTTP 200)"
+        break
+    fi
+    if [ $i -eq 10 ]; then
+        echo "❌ API 服务健康检查失败 (HTTP $API_STATUS)"
+        echo "📋 服务状态信息:"
+        systemctl status "$SERVICE_NAME" --no-pager -l
+        echo ""
+        echo "📋 最近错误日志:"
+        journalctl -u "$SERVICE_NAME" --no-pager -n 30 --since "2 minutes ago"
+        echo ""
+        echo "🔧 故障排除建议:"
+        echo "   1. 检查端口占用: netstat -tlnp | grep 3000"
+        echo "   2. 手动启动测试: sudo -u $APP_USER node production-server.js"
+        echo "   3. 检查配置文件: cat $APP_DIR/.env"
+        echo "   4. 查看详细日志: journalctl -u $SERVICE_NAME -f"
+        exit 1
+    fi
+    sleep 3
+    echo "   健康检查中... ($i/10)"
+done
+
+# 验证数据库连接
+echo "💾 验证数据库连接..."
+if [ -f "$DATA_DIR/database.db" ]; then
+    DB_SIZE=$(du -sh "$DATA_DIR/database.db" | cut -f1)
+    echo "✅ 数据库文件存在，大小: $DB_SIZE"
 else
-    echo "❌ API 服务异常 (HTTP $API_STATUS)"
-    echo "请检查日志: journalctl -u $SERVICE_NAME -f"
-    exit 1
+    echo "⚠️ 数据库文件不存在，将在首次启动时创建"
 fi
 
 echo ""

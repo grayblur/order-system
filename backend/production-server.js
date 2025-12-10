@@ -17,6 +17,7 @@ if (process.env.NODE_ENV === 'production') {
 const database = require('./models/database');
 const orderRoutes = require('./routes/orders');
 const goodsRoutes = require('./routes/goods');
+const quickInputRoutes = require('./routes/quickInputs');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -95,6 +96,7 @@ app.get('/health', (req, res) => {
 // API路由
 app.use('/api/orders', orderRoutes);
 app.use('/api/goods', goodsRoutes);
+app.use('/api/quick-inputs', quickInputRoutes);
 
 // API信息端点
 app.get('/api', (req, res) => {
@@ -119,6 +121,13 @@ app.get('/api', (req, res) => {
         subcategories: 'GET /api/goods/subcategories/:category',
         products: 'GET /api/goods/products/:category/:subcategory',
         search: 'GET /api/goods/search?q=keyword'
+      },
+      quickInputs: {
+        list: 'GET /api/quick-inputs',
+        create: 'POST /api/quick-inputs',
+        update: 'PUT /api/quick-inputs/:id',
+        delete: 'DELETE /api/quick-inputs/:id',
+        reorder: 'PUT /api/quick-inputs/reorder'
       }
     }
   });
@@ -225,6 +234,9 @@ async function startServer() {
       console.log('- ✅ 错误处理');
       console.log('- ✅ 优雅关闭');
       console.log('- ✅ 进程监控');
+      console.log('- ✅ 文件上传限制');
+      console.log('- ✅ 代理支持');
+      console.log('- ✅ 完整API端点');
     });
 
     // 设置服务器超时
