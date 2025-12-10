@@ -252,7 +252,19 @@
           <el-table :data="filteredOrders" stripe style="width: 100%">
             <el-table-column prop="customerName" label="客户姓名" width="120" />
             <el-table-column prop="phone" label="联系电话" width="130" />
-            <el-table-column prop="deliveryDate" label="制作日期" width="120" />
+            <el-table-column prop="deliveryDate" label="制作日期" width="150">
+              <template #default="scope">
+                <el-date-picker
+                  v-model="scope.row.deliveryDate"
+                  type="date"
+                  placeholder="选择日期"
+                  size="small"
+                  style="width: 130px"
+                  @change="handleDateChange(scope.row)"
+                  :disabled-date="disabledDate"
+                />
+              </template>
+            </el-table-column>
             <el-table-column prop="items" label="订购商品" min-width="200">
               <template #default="scope">
                 <div v-for="item in scope.row.items" :key="item.id" class="order-item">
@@ -276,7 +288,18 @@
                 </el-tag>
               </template>
             </el-table-column>
-            <el-table-column prop="notes" label="备注" min-width="150" />
+            <el-table-column prop="notes" label="备注" min-width="200">
+              <template #default="scope">
+                <el-input
+                  v-model="scope.row.notes"
+                  type="text"
+                  placeholder="点击编辑备注"
+                  size="small"
+                  @blur="handleNotesChange(scope.row)"
+                  @keyup.enter="handleNotesChange(scope.row)"
+                />
+              </template>
+            </el-table-column>
             <el-table-column label="操作" width="200">
               <template #default="scope">
                 <el-button size="small" type="danger" @click="deleteOrder(scope.row)">删除</el-button>
@@ -587,7 +610,7 @@ const loadOrders = async (page = 1) => {
         id: order.id,
         customerName: order.customer_name,
         phone: order.customer_phone,
-        deliveryDate: order.delivery_date,
+        deliveryDate: new Date(order.delivery_date), // 转换为Date对象以便日期选择器使用
         items: order.items ? order.items.map(item => ({
           id: item.id,
           category: item.category,
@@ -821,6 +844,125 @@ const deleteOrder = async (order) => {
   }
 }
 
+// 处理制作日期修改
+const handleDateChange = async (order) => {
+  try {
+    // 将新日期格式化为 YYYY-MM-DD
+    const formattedDate = (() => {
+      if (typeof order.deliveryDate === 'string') {
+        return order.deliveryDate
+      }
+      const year = order.deliveryDate.getFullYear()
+      const month = String(order.deliveryDate.getMonth() + 1).padStart(2, '0')
+      const day = String(order.deliveryDate.getDate()).padStart(2, '0')
+      return `${year}-${month}-${day}`
+    })()
+
+    // 显示确认对话框，显示将要设置的新日期
+    await ElMessageBox.confirm(
+      `确定要将客户 "${order.customerName}" 的制作日期设置为 "${formattedDate}" 吗？`,
+      '修改制作日期',
+      {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+        type: 'warning'
+      }
+    )
+
+    const response = await fetch(`/api/orders/${order.id}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        customer_name: order.customerName,
+        customer_address: order.customerName,
+        customer_phone: order.phone,
+        delivery_date: formattedDate,
+        notes: order.notes,
+        paid_amount: order.isPaid ? order.totalPrice : 0,
+        payment_status: order.isPaid ? '已支付' : '未支付'
+      })
+    })
+    const result = await response.json()
+
+    if (result.success) {
+      ElMessage.success('制作日期已更新')
+      // 重新加载订单数据以确保数据同步
+      loadOrders()
+    } else {
+      ElMessage.error(result.error || '更新制作日期失败')
+      // 如果更新失败，重新加载数据以恢复原值
+      loadOrders()
+    }
+  } catch (error) {
+    if (error !== 'cancel') {
+      console.error('更新制作日期失败:', error)
+      ElMessage.error('网络错误，更新制作日期失败')
+      loadOrders()
+    }
+  }
+}
+
+// 处理备注修改
+const handleNotesChange = async (order) => {
+  try {
+    // 显示确认对话框，显示新旧备注对比
+    await ElMessageBox.confirm(
+      `确定要修改客户 "${order.customerName}" 的备注吗？\n\n新备注：${order.notes || '（无）'}`,
+      '修改备注',
+      {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+        type: 'warning'
+      }
+    )
+
+    const formattedDate = (() => {
+      if (typeof order.deliveryDate === 'string') {
+        return order.deliveryDate
+      }
+      const year = order.deliveryDate.getFullYear()
+      const month = String(order.deliveryDate.getMonth() + 1).padStart(2, '0')
+      const day = String(order.deliveryDate.getDate()).padStart(2, '0')
+      return `${year}-${month}-${day}`
+    })()
+
+    const response = await fetch(`/api/orders/${order.id}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        customer_name: order.customerName,
+        customer_address: order.customerName,
+        customer_phone: order.phone,
+        delivery_date: formattedDate,
+        notes: order.notes,
+        paid_amount: order.isPaid ? order.totalPrice : 0,
+        payment_status: order.isPaid ? '已支付' : '未支付'
+      })
+    })
+    const result = await response.json()
+
+    if (result.success) {
+      ElMessage.success('备注已更新')
+      // 重新加载订单数据以确保数据同步
+      loadOrders()
+    } else {
+      ElMessage.error(result.error || '更新备注失败')
+      // 如果更新失败，重新加载数据以恢复原值
+      loadOrders()
+    }
+  } catch (error) {
+    if (error !== 'cancel') {
+      console.error('更新备注失败:', error)
+      ElMessage.error('网络错误，更新备注失败')
+      loadOrders()
+    }
+  }
+}
+
 // 切换付款状态
 const togglePaymentStatus = async (order) => {
   const currentStatus = order.isPaid
@@ -843,6 +985,16 @@ const togglePaymentStatus = async (order) => {
     const newPaidAmount = newStatus ? order.totalPrice : 0
     const newPaymentStatusDb = newStatus ? '已支付' : '未支付'
 
+    const formattedDate = (() => {
+      if (typeof order.deliveryDate === 'string') {
+        return order.deliveryDate
+      }
+      const year = order.deliveryDate.getFullYear()
+      const month = String(order.deliveryDate.getMonth() + 1).padStart(2, '0')
+      const day = String(order.deliveryDate.getDate()).padStart(2, '0')
+      return `${year}-${month}-${day}`
+    })()
+
     const response = await fetch(`/api/orders/${order.id}`, {
       method: 'PUT',
       headers: {
@@ -852,7 +1004,7 @@ const togglePaymentStatus = async (order) => {
         customer_name: order.customerName,
         customer_address: order.customerName, // 使用姓名作为地址
         customer_phone: order.phone,
-        delivery_date: order.deliveryDate,
+        delivery_date: formattedDate,
         notes: order.notes,
         paid_amount: newPaidAmount,
         payment_status: newPaymentStatusDb
