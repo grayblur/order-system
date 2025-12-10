@@ -60,6 +60,44 @@
                     @input="validateNameOrAddress"
                   />
                 </el-form-item>
+
+                <!-- 快捷输入 -->
+                <el-form-item>
+                  <div class="quick-inputs-container">
+                    <div class="quick-inputs-header">
+                      <span>快捷输入：</span>
+                      <el-button
+                        type="text"
+                        size="small"
+                        @click="showAddQuickInput"
+                        style="margin-left: 10px"
+                      >
+                        <el-icon><Plus /></el-icon>
+                        添加
+                      </el-button>
+                    </div>
+                    <div class="quick-inputs-list" v-if="quickInputs.length > 0">
+                      <el-tag
+                        v-for="input in quickInputs"
+                        :key="input.id"
+                        type="info"
+                        size="small"
+                        class="quick-input-tag"
+                        @click="applyQuickInput(input.content)"
+                      >
+                        {{ input.content }}
+                        <el-button
+                          type="text"
+                          size="small"
+                          @click.stop="deleteQuickInput(input.id)"
+                          style="margin-left: 5px; padding: 0;"
+                        >
+                          <el-icon><Close /></el-icon>
+                        </el-button>
+                      </el-tag>
+                    </div>
+                  </div>
+                </el-form-item>
               </el-col>
               <el-col :span="12">
                 <el-form-item
@@ -95,12 +133,50 @@
             </el-row>
 
             <el-form-item label="备注信息">
-              <el-input 
-                v-model="form.notes" 
-                type="textarea" 
-                :rows="2" 
-                placeholder="填写特殊需求..." 
+              <el-input
+                v-model="form.notes"
+                type="textarea"
+                :rows="2"
+                placeholder="填写特殊需求..."
               />
+            </el-form-item>
+
+            <!-- 备注快捷输入 -->
+            <el-form-item>
+              <div class="quick-inputs-container">
+                <div class="quick-inputs-header">
+                  <span>备注快捷输入：</span>
+                  <el-button
+                    type="text"
+                    size="small"
+                    @click="showAddNotesQuickInput"
+                    style="margin-left: 10px"
+                  >
+                    <el-icon><Plus /></el-icon>
+                    添加
+                  </el-button>
+                </div>
+                <div class="quick-inputs-list" v-if="notesQuickInputs.length > 0">
+                  <el-tag
+                    v-for="input in notesQuickInputs"
+                    :key="input.id"
+                    type="warning"
+                    size="small"
+                    class="quick-input-tag"
+                    @click="applyNotesQuickInput(input.content)"
+                  >
+                    {{ input.content }}
+                    <el-button
+                      type="text"
+                      size="small"
+                      @click.stop="deleteNotesQuickInput(input.id)"
+                      style="margin-left: 5px; padding: 0;"
+                    >
+                      <el-icon><Close /></el-icon>
+                    </el-button>
+                  </el-tag>
+                </div>
+              </div>
             </el-form-item>
           </el-form>
         </el-card>
@@ -332,19 +408,87 @@
 
     <!-- 商品管理组件 -->
     <GoodsManager ref="goodsManagerRef" />
+
+    <!-- 添加姓名快捷输入对话框 -->
+    <el-dialog
+      v-model="showAddQuickInputDialog"
+      title="添加姓名快捷输入"
+      width="400px"
+      :close-on-click-modal="false"
+    >
+      <el-form :model="quickInputForm" label-width="80px">
+        <el-form-item label="内容">
+          <el-input
+            v-model="quickInputForm.content"
+            placeholder="请输入快捷输入内容"
+            clearable
+          />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <span class="dialog-footer">
+          <el-button @click="showAddQuickInputDialog = false">取消</el-button>
+          <el-button type="primary" @click="addQuickInput" :loading="addingQuickInput">
+            确定
+          </el-button>
+        </span>
+      </template>
+    </el-dialog>
+
+    <!-- 添加备注快捷输入对话框 -->
+    <el-dialog
+      v-model="showAddNotesQuickInputDialog"
+      title="添加备注快捷输入"
+      width="400px"
+      :close-on-click-modal="false"
+    >
+      <el-form :model="notesQuickInputForm" label-width="80px">
+        <el-form-item label="内容">
+          <el-input
+            v-model="notesQuickInputForm.content"
+            placeholder="请输入备注快捷输入内容"
+            clearable
+          />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <span class="dialog-footer">
+          <el-button @click="showAddNotesQuickInputDialog = false">取消</el-button>
+          <el-button type="primary" @click="addNotesQuickInput" :loading="addingNotesQuickInput">
+            确定
+          </el-button>
+        </span>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup>
 import { ref, computed, reactive, nextTick, onMounted, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { User, Goods, Search, Printer, Check, Delete, View, Setting } from '@element-plus/icons-vue'
+import { User, Goods, Search, Printer, Check, Delete, View, Setting, Plus, Close } from '@element-plus/icons-vue'
 import PrintDialog from './components/PrintDialog.vue'
 import GoodsManager from './components/GoodsManager.vue'
 import dayjs from 'dayjs'
 
 const customerFormRef = ref()
 const goodsManagerRef = ref()
+
+// 快捷输入相关数据
+const quickInputs = ref([])
+const showAddQuickInputDialog = ref(false)
+const quickInputForm = reactive({
+  content: ''
+})
+const addingQuickInput = ref(false)
+
+// 备注快捷输入相关数据
+const notesQuickInputs = ref([])
+const showAddNotesQuickInputDialog = ref(false)
+const notesQuickInputForm = reactive({
+  content: ''
+})
+const addingNotesQuickInput = ref(false)
 
 // 打开商品管理器
 const handleOpenGoodsManager = () => {
@@ -1258,6 +1402,183 @@ const resetForm = () => {
   customerFormRef.value?.resetFields()
 }
 
+// 快捷输入相关方法
+// 加载快捷输入数据
+const loadQuickInputs = async () => {
+  try {
+    // 加载姓名快捷输入
+    const nameResponse = await fetch('/api/quick-inputs?type=name')
+    const nameResult = await nameResponse.json()
+    if (nameResult.success) {
+      quickInputs.value = nameResult.data
+    }
+
+    // 加载备注快捷输入
+    const notesResponse = await fetch('/api/quick-inputs?type=notes')
+    const notesResult = await notesResponse.json()
+    if (notesResult.success) {
+      notesQuickInputs.value = notesResult.data
+    }
+  } catch (error) {
+    console.error('加载快捷输入失败:', error)
+  }
+}
+
+// 显示添加快捷输入对话框
+const showAddQuickInput = () => {
+  quickInputForm.content = ''
+  showAddQuickInputDialog.value = true
+}
+
+// 添加快捷输入
+const addQuickInput = async () => {
+  if (!quickInputForm.content.trim()) {
+    ElMessage.warning('请输入快捷输入内容')
+    return
+  }
+
+  addingQuickInput.value = true
+  try {
+    const response = await fetch('/api/quick-inputs', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        content: quickInputForm.content.trim(),
+        type: 'name'
+      })
+    })
+
+    const result = await response.json()
+    if (result.success) {
+      ElMessage.success(result.message)
+      showAddQuickInputDialog.value = false
+      quickInputForm.content = ''
+      await loadQuickInputs() // 重新加载列表
+    } else {
+      ElMessage.error(result.error || '添加快捷输入失败')
+    }
+  } catch (error) {
+    console.error('添加快捷输入失败:', error)
+    ElMessage.error('添加快捷输入失败')
+  } finally {
+    addingQuickInput.value = false
+  }
+}
+
+// 应用快捷输入
+const applyQuickInput = (content) => {
+  form.nameOrAddress = content
+  ElMessage.success('已应用快捷输入')
+}
+
+// 删除快捷输入
+const deleteQuickInput = async (id) => {
+  try {
+    await ElMessageBox.confirm('确定要删除这个快捷输入吗？', '提示', {
+      confirmButtonText: '确定',
+      cancelButtonText: '取消',
+      type: 'warning'
+    })
+
+    const response = await fetch(`/api/quick-inputs/${id}`, {
+      method: 'DELETE'
+    })
+
+    const result = await response.json()
+    if (result.success) {
+      ElMessage.success(result.message)
+      await loadQuickInputs() // 重新加载列表
+    } else {
+      ElMessage.error(result.error || '删除快捷输入失败')
+    }
+  } catch (error) {
+    if (error !== 'cancel') {
+      console.error('删除快捷输入失败:', error)
+      ElMessage.error('删除快捷输入失败')
+    }
+  }
+}
+
+// 备注快捷输入相关方法
+// 显示添加备注快捷输入对话框
+const showAddNotesQuickInput = () => {
+  notesQuickInputForm.content = ''
+  showAddNotesQuickInputDialog.value = true
+}
+
+// 添加备注快捷输入
+const addNotesQuickInput = async () => {
+  if (!notesQuickInputForm.content.trim()) {
+    ElMessage.warning('请输入备注快捷输入内容')
+    return
+  }
+
+  addingNotesQuickInput.value = true
+  try {
+    const response = await fetch('/api/quick-inputs', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        content: notesQuickInputForm.content.trim(),
+        type: 'notes'
+      })
+    })
+
+    const result = await response.json()
+    if (result.success) {
+      ElMessage.success(result.message)
+      showAddNotesQuickInputDialog.value = false
+      notesQuickInputForm.content = ''
+      await loadQuickInputs() // 重新加载列表
+    } else {
+      ElMessage.error(result.error || '添加备注快捷输入失败')
+    }
+  } catch (error) {
+    console.error('添加备注快捷输入失败:', error)
+    ElMessage.error('添加备注快捷输入失败')
+  } finally {
+    addingNotesQuickInput.value = false
+  }
+}
+
+// 应用备注快捷输入
+const applyNotesQuickInput = (content) => {
+  form.notes = content
+  ElMessage.success('已应用备注快捷输入')
+}
+
+// 删除备注快捷输入
+const deleteNotesQuickInput = async (id) => {
+  try {
+    await ElMessageBox.confirm('确定要删除这个备注快捷输入吗？', '提示', {
+      confirmButtonText: '确定',
+      cancelButtonText: '取消',
+      type: 'warning'
+    })
+
+    const response = await fetch(`/api/quick-inputs/${id}`, {
+      method: 'DELETE'
+    })
+
+    const result = await response.json()
+    if (result.success) {
+      ElMessage.success(result.message)
+      await loadQuickInputs() // 重新加载列表
+    } else {
+      ElMessage.error(result.error || '删除备注快捷输入失败')
+    }
+  } catch (error) {
+    if (error !== 'cancel') {
+      console.error('删除备注快捷输入失败:', error)
+      ElMessage.error('删除备注快捷输入失败')
+    }
+  }
+}
+
 // 恢复商品选择状态
 const restoreGoodsSelection = (savedSelectedItems) => {
   if (!savedSelectedItems) return
@@ -1284,6 +1605,9 @@ const restoreGoodsSelection = (savedSelectedItems) => {
 onMounted(async () => {
   // 先加载商品数据
   await loadGoodsData()
+
+  // 加载快捷输入数据
+  await loadQuickInputs()
 
   // 从localStorage恢复数据
   const savedData = loadFromStorage()
@@ -1510,6 +1834,42 @@ watch(
   :deep(.el-input__clear) {
     cursor: pointer;
     pointer-events: auto;
+  }
+}
+
+/* 快捷输入样式 */
+.quick-inputs-container {
+  .quick-inputs-header {
+    display: flex;
+    align-items: center;
+    font-size: 14px;
+    color: #666;
+    margin-bottom: 8px;
+  }
+
+  .quick-inputs-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+
+    .quick-input-tag {
+      cursor: pointer;
+      transition: all 0.2s ease;
+      user-select: none;
+
+      &:hover {
+        background-color: var(--primary-color);
+        color: white;
+        transform: translateY(-1px);
+      }
+
+      .el-button {
+        &:hover {
+          background-color: rgba(255, 255, 255, 0.2);
+          border-radius: 50%;
+        }
+      }
+    }
   }
 }
 

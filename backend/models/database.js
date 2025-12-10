@@ -106,6 +106,19 @@ class DatabaseManager {
         )
       `);
 
+      // 创建快捷输入表
+      this.run(`
+        CREATE TABLE IF NOT EXISTS quick_inputs (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          content TEXT NOT NULL,
+          type TEXT NOT NULL DEFAULT 'text',
+          is_active BOOLEAN DEFAULT 1,
+          sort_order INTEGER DEFAULT 0,
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+      `);
+
       console.log('数据库表结构初始化完成');
 
       // 检查是否需要导入初始数据

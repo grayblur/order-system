@@ -9,6 +9,7 @@ require('dotenv').config();
 const database = require('./models/database');
 const orderRoutes = require('./routes/orders');
 const goodsRoutes = require('./routes/goods');
+const quickInputRoutes = require('./routes/quickInputs');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -19,7 +20,10 @@ app.use(helmet());
 const allowedOrigins = [
   'http://localhost:5173',
   'http://127.0.0.1:5173',
-  'http://192.168.62.135:5173' // 当前网络IP
+  'http://192.168.62.135:5173', // 当前网络IP
+  'http://localhost:5174',
+  'http://127.0.0.1:5174',
+  'http://192.168.62.135:5174'  // 当前网络IP新端口
 ];
 
 app.use(cors({
@@ -65,6 +69,7 @@ app.get('/health', (req, res) => {
 // API路由
 app.use('/api/orders', orderRoutes);
 app.use('/api/goods', goodsRoutes);
+app.use('/api/quick-inputs', quickInputRoutes);
 
 // 根路径
 app.get('/api', (req, res) => {
@@ -88,6 +93,13 @@ app.get('/api', (req, res) => {
         subcategories: 'GET /api/goods/subcategories/:category',
         products: 'GET /api/goods/products/:category/:subcategory',
         search: 'GET /api/goods/search?q=keyword'
+      },
+      quickInputs: {
+        list: 'GET /api/quick-inputs',
+        create: 'POST /api/quick-inputs',
+        update: 'PUT /api/quick-inputs/:id',
+        delete: 'DELETE /api/quick-inputs/:id',
+        reorder: 'PUT /api/quick-inputs/reorder'
       }
     }
   });
