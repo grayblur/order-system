@@ -23,9 +23,9 @@
     </header>
 
     <main class="main-content">
-      <!-- 左侧区域：客户信息 + 商品选择 (60%) -->
-      <div class="left-column">
-        
+      <!-- 上方区域：客户信息 + 商品选择 -->
+      <div class="top-section">
+
         <!-- 1. 客户信息区块 -->
         <el-card class="box-card section-customer" shadow="hover">
           <template #header>
@@ -34,7 +34,7 @@
               <span>客户信息</span>
             </div>
           </template>
-          
+
           <el-form
             ref="customerFormRef"
             :model="form"
@@ -116,7 +116,7 @@
                 </el-form-item>
               </el-col>
             </el-row>
-            
+
             <el-row :gutter="20">
               <el-col :span="12">
                 <el-form-item label="制作日期">
@@ -242,9 +242,9 @@
         </el-card>
       </div>
 
-      <!-- 右侧区域：订单汇总 (40%) -->
-      <div class="right-column">
-        <el-card class="box-card order-summary sticky-card" shadow="always">
+      <!-- 下方区域：订单汇总 -->
+      <div class="bottom-section">
+        <el-card class="box-card order-summary" shadow="always">
           <template #header>
             <div class="card-header summary-header">
               <span>订单汇总</span>
@@ -281,7 +281,7 @@
               <span>商品总计:</span>
               <span class="total-price">¥{{ totalPrice }}</span>
             </div>
-            
+
             <div class="payment-check">
               <el-checkbox v-model="isPaid">已结清账目</el-checkbox>
             </div>
@@ -1734,19 +1734,18 @@ watch(
 /* Layout */
 .main-content {
   display: flex;
+  flex-direction: column;
   gap: 20px;
-  align-items: flex-start; /* 顶部对齐 */
 }
 
-.left-column {
-  flex: 3; /* 60% approx */
+.top-section {
   display: flex;
   flex-direction: column;
   gap: 20px;
 }
 
-.right-column {
-  flex: 2; /* 40% approx */
+.bottom-section {
+  /* 下方区域不需要特殊设置，直接使用卡片样式 */
 }
 
 /* Cards */
@@ -1937,10 +1936,8 @@ watch(
   }
 }
 
-/* Order Summary (Sticky) */
-.sticky-card {
-  position: sticky;
-  top: 20px;
+/* Order Summary */
+.order-summary {
   border-top: 3px solid #F39C12;
 }
 
@@ -1949,7 +1946,7 @@ watch(
 }
 
 .summary-list {
-  max-height: 400px;
+  max-height: 300px;
   overflow-y: auto;
   margin-bottom: 20px;
   border-bottom: 1px dashed #eee;
@@ -2027,16 +2024,23 @@ watch(
 }
 
 /* Responsive */
-@media (max-width: 1000px) {
+@media (max-width: 768px) {
   .main-content {
+    gap: 15px;
+  }
+
+  .app-container {
+    padding: 15px;
+  }
+
+  .summary-item {
     flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
   }
-  .left-column, .right-column {
-    flex: auto;
-    width: 100%;
-  }
-  .sticky-card {
-    position: static;
+
+  .item-total {
+    align-self: flex-end;
   }
 }
 
