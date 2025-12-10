@@ -579,6 +579,9 @@ const selectedDate = ref(null)
 // 订单数据
 const orders = ref([])
 
+// 原始订单数据快照，用于比较变化
+const originalOrdersSnapshot = ref([])
+
 // 分页数据
 const pagination = reactive({
   page: 1,
@@ -606,7 +609,7 @@ const loadOrders = async (page = 1) => {
 
     if (result.success) {
       // 转换API数据格式为前端期望的格式
-      orders.value = result.data.map(order => ({
+      const transformedOrders = result.data.map(order => ({
         id: order.id,
         customerName: order.customer_name,
         phone: order.customer_phone,
@@ -624,6 +627,10 @@ const loadOrders = async (page = 1) => {
         notes: order.notes,
         itemCount: order.item_count
       }))
+
+      orders.value = transformedOrders
+      // 创建数据快照用于比较变化
+      originalOrdersSnapshot.value = JSON.parse(JSON.stringify(transformedOrders))
 
       // 更新分页信息
       if (result.pagination) {
@@ -847,8 +854,15 @@ const deleteOrder = async (order) => {
 // 处理制作日期修改
 const handleDateChange = async (order) => {
   try {
-    // 将新日期格式化为 YYYY-MM-DD
-    const formattedDate = (() => {
+    // 从快照中找到对应的原始订单数据
+    const originalOrder = originalOrdersSnapshot.value.find(o => o.id === order.id)
+    if (!originalOrder) {
+      ElMessage.error('找不到订单数据')
+      return
+    }
+
+    // 将新日期和原始日期都格式化为 YYYY-MM-DD 进行比较
+    const formattedNewDate = (() => {
       if (typeof order.deliveryDate === 'string') {
         return order.deliveryDate
       }
@@ -858,9 +872,24 @@ const handleDateChange = async (order) => {
       return `${year}-${month}-${day}`
     })()
 
-    // 显示确认对话框，显示将要设置的新日期
+    const formattedOriginalDate = (() => {
+      if (typeof originalOrder.deliveryDate === 'string') {
+        return originalOrder.deliveryDate
+      }
+      const year = originalOrder.deliveryDate.getFullYear()
+      const month = String(originalOrder.deliveryDate.getMonth() + 1).padStart(2, '0')
+      const day = String(originalOrder.deliveryDate.getDate()).padStart(2, '0')
+      return `${year}-${month}-${day}`
+    })()
+
+    // 如果日期没有变化，则不执行更新
+    if (formattedNewDate === formattedOriginalDate) {
+      return
+    }
+
+    // 显示确认对话框，显示日期变化
     await ElMessageBox.confirm(
-      `确定要将客户 "${order.customerName}" 的制作日期设置为 "${formattedDate}" 吗？`,
+      `确定要将客户 "${order.customerName}" 的制作日期从 "${formattedOriginalDate}" 改为 "${formattedNewDate}" 吗？`,
       '修改制作日期',
       {
         confirmButtonText: '确定',
@@ -878,7 +907,7 @@ const handleDateChange = async (order) => {
         customer_name: order.customerName,
         customer_address: order.customerName,
         customer_phone: order.phone,
-        delivery_date: formattedDate,
+        delivery_date: formattedNewDate,
         notes: order.notes,
         paid_amount: order.isPaid ? order.totalPrice : 0,
         payment_status: order.isPaid ? '已支付' : '未支付'
@@ -900,6 +929,15 @@ const handleDateChange = async (order) => {
       console.error('更新制作日期失败:', error)
       ElMessage.error('网络错误，更新制作日期失败')
       loadOrders()
+    } else {
+      // 用户取消操作，恢复原始日期显示
+      const originalOrder = originalOrdersSnapshot.value.find(o => o.id === order.id)
+      if (originalOrder) {
+        // 使用 nextTick 确保 DOM 更新
+        nextTick(() => {
+          order.deliveryDate = new Date(originalOrder.deliveryDate)
+        })
+      }
     }
   }
 }
@@ -907,9 +945,18 @@ const handleDateChange = async (order) => {
 // 处理备注修改
 const handleNotesChange = async (order) => {
   try {
+    // 从快照中找到对应的原始订单数据
+    const originalOrder = originalOrdersSnapshot.value.find(o => o.id === order.id)
+    const originalNotes = originalOrder ? (originalOrder.notes || '') : ''
+
+    // 如果备注没有变化，则不执行更新
+    if (originalNotes === order.notes) {
+      return
+    }
+
     // 显示确认对话框，显示新旧备注对比
     await ElMessageBox.confirm(
-      `确定要修改客户 "${order.customerName}" 的备注吗？\n\n新备注：${order.notes || '（无）'}`,
+      `确定要修改客户 "${order.customerName}" 的备注吗？\n\n原备注：${originalNotes || '（无）'}\n新备注：${order.notes || '（无）'}`,
       '修改备注',
       {
         confirmButtonText: '确定',
@@ -959,6 +1006,15 @@ const handleNotesChange = async (order) => {
       console.error('更新备注失败:', error)
       ElMessage.error('网络错误，更新备注失败')
       loadOrders()
+    } else {
+      // 用户取消操作，恢复原始备注显示
+      const originalOrder = originalOrdersSnapshot.value.find(o => o.id === order.id)
+      if (originalOrder) {
+        // 使用 nextTick 确保 DOM 更新
+        nextTick(() => {
+          order.notes = originalOrder.notes || ''
+        })
+      }
     }
   }
 }
