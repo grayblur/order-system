@@ -57,11 +57,11 @@ router.post('/', async (req, res) => {
       });
     }
 
-    // 检查是否已存在相同内容
+    // 检查是否已存在相同内容（同一类型下）
     const existing = await database.get(`
       SELECT id FROM quick_inputs
-      WHERE content = ? AND is_active = 1
-    `, [content.trim()]);
+      WHERE content = ? AND type = ? AND is_active = 1
+    `, [content.trim(), type]);
 
     if (existing) {
       return res.status(400).json({
@@ -128,11 +128,11 @@ router.put('/:id', async (req, res) => {
       });
     }
 
-    // 检查是否与其他快捷输入重复
+    // 检查是否与其他快捷输入重复（同一类型下）
     const duplicate = await database.get(`
       SELECT id FROM quick_inputs
-      WHERE content = ? AND id != ? AND is_active = 1
-    `, [content.trim(), quickInputId]);
+      WHERE content = ? AND type = ? AND id != ? AND is_active = 1
+    `, [content.trim(), type || 'text', quickInputId]);
 
     if (duplicate) {
       return res.status(400).json({

@@ -8,6 +8,7 @@ require('dotenv').config();
 const database = require('./models/database');
 const orderRoutes = require('./routes/orders');
 const goodsRoutes = require('./routes/goods');
+const quickInputRoutes = require('./routes/quickInputs');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -32,6 +33,7 @@ app.use(bodyParser.urlencoded({ extended: true }));
 // API路由
 app.use('/api/orders', orderRoutes);
 app.use('/api/goods', goodsRoutes);
+app.use('/api/quick-inputs', quickInputRoutes);
 
 // 健康检查端点
 app.get('/health', (req, res) => {
