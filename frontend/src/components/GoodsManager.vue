@@ -330,7 +330,8 @@ const convertApiDataToTree = (apiData) => {
           children: productGroups[thirdLevelName],
           editId: null,
           category: categoryName,
-          subcategory: subcategoryName
+          subcategory: subcategoryName,
+          productCategory: thirdLevelName  // 标记为第三层商品分类
         }
         subcategoryNode.children.push(thirdLevelNode)
       })
@@ -437,6 +438,12 @@ const handleAddSubcategory = async (categoryRow) => {
   ).catch(() => ({ value: null }))
 
   if (subcategoryName) {
+    // 判断当前节点层级
+    // 第1层：没有 category 属性
+    // 第2层：有 category 但没有 subcategory 属性
+    const isFirstLevel = !categoryRow.category
+    const isSecondLevel = categoryRow.category && !categoryRow.subcategory
+
     const newSubcategory = {
       id: `sc_${Date.now()}`,
       label: subcategoryName,
@@ -444,9 +451,15 @@ const handleAddSubcategory = async (categoryRow) => {
       hasChildren: true,
       children: [],
       editId: null,
-      category: categoryRow.category || categoryRow.label,
-      subcategory: categoryRow.subcategory || subcategoryName,
-      productCategory: categoryRow.subcategory ? subcategoryName : undefined
+      // 从第1层添加：category = 父节点的label
+      // 从第2层添加：category = 父节点的category
+      category: isFirstLevel ? categoryRow.label : categoryRow.category,
+      // 从第1层添加：不设置 subcategory
+      // 从第2层添加：subcategory = 父节点的label
+      subcategory: isSecondLevel ? categoryRow.label : undefined,
+      // 从第1层添加：不设置 productCategory
+      // 从第2层添加：productCategory = 新子分类名称（标记为第3层）
+      productCategory: isSecondLevel ? subcategoryName : undefined
     }
 
     if (!categoryRow.children) {
