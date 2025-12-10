@@ -339,29 +339,25 @@ const openPrintPreview = (printData, dateStr, dateIso) => {
   sortedGroups.forEach(group => {
     const products = Object.values(group.products)
 
-    // 第一行：显示第三层分类名称和总数量
+    // 生成商品名称列表：商品名(份数)格式，用逗号分隔
+    const productsList = products.map(product =>
+      `${product.name}(${product.quantity}${product.unit})`
+    ).join('、')
+
+    // 单行显示：品类名称 | 商品名称(份数)、商品名称(份数)... | 品类总数量
     productSummaryRows.push(
       '<tr>' +
-        '<td style="text-align: center; font-weight: bold; background-color: #f5f5f5;">' +
+        '<td style="text-align: center; font-weight: bold;">' +
           group.productCategory +
         '</td>' +
-        '<td style="background-color: #f5f5f5;"></td>' +
-        '<td style="text-align: center; font-weight: bold; font-size: 20px; background-color: #f5f5f5;">' +
+        '<td style="padding-left: 10px;">' +
+          productsList +
+        '</td>' +
+        '<td style="text-align: center; font-weight: bold; font-size: 20px;">' +
           group.totalQuantity + ' ' + (products[0]?.unit || '份') +
         '</td>' +
       '</tr>'
     )
-
-    // 后续行：显示具体商品名称，左侧缩进对齐
-    products.forEach(product => {
-      productSummaryRows.push(
-        '<tr>' +
-          '<td></td>' +
-          '<td style="padding-left: 30px;">' + product.name + '</td>' +
-          '<td style="text-align: center;">' + product.quantity + ' ' + product.unit + '</td>' +
-        '</tr>'
-      )
-    })
   })
 
   const productSummaryRowsHtml = productSummaryRows.join('')
@@ -450,11 +446,11 @@ const openPrintPreview = (printData, dateStr, dateIso) => {
         '<' + 'table>' +
           '<' + 'thead>' +
             '<' + 'tr>' +
-              '<' + 'th style="width: 20%;">客户<' + '/th>' +
+              '<' + 'th style="width: 12%;">客户<' + '/th>' +
               '<' + 'th style="width: 12%;">联系电话<' + '/th>' +
-              '<' + 'th style="width: 28%;">商品信息<' + '/th>' +
-              '<' + 'th style="width: 10%;">金额<' + '/th>' +
-              '<' + 'th style="width: 15%;">结清状态<' + '/th>' +
+              '<' + 'th style="width: 40%;">商品信息<' + '/th>' +
+              '<' + 'th style="width: 13%;">金额<' + '/th>' +
+              '<' + 'th style="width: 8%;">结清状态<' + '/th>' +
               '<' + 'th style="width: 15%;">备注信息<' + '/th>' +
             '<' + '/tr>' +
           '<' + '/thead>' +

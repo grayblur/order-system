@@ -43,9 +43,16 @@ class PrinterService {
       const printers = [];
 
       for (const line of lines) {
-        const match = line.match(/printer (.+) is (.+)/);
+        // 支持中文和英文输出格式
+        let match = line.match(/(?:printer |打印机 )(.+?)(?: is | )(.+?)(?:\. | now|目前)/);
+        if (!match) {
+          // 尝试更宽松的匹配模式
+          match = line.match(/(?:printer |打印机 )(.+?)(?: is | )(.*?)(?:\.|开始启用|since)/);
+        }
         if (match) {
-          const [, name, status] = match;
+          let [, name, status] = match;
+          // 清理状态信息，去除时间戳等
+          status = status.replace(/现在|目前|空闲|启用.*/, '空闲');
           printers.push({
             name: name.trim(),
             status: status.trim(),
@@ -59,7 +66,11 @@ class PrinterService {
       // 检查默认打印机
       try {
         const { stdout: defaultOutput } = await execAsync('lpstat -d 2>/dev/null');
-        const defaultMatch = defaultOutput.match(/system default destination: (.+)/);
+        // 支持中英文默认打印机输出
+        let defaultMatch = defaultOutput.match(/system default destination: (.+)/);
+        if (!defaultMatch) {
+          defaultMatch = defaultOutput.match(/系统默认目标：(.+)/);
+        }
         if (defaultMatch) {
           const defaultName = defaultMatch[1].trim();
           const defaultPrinter = printers.find(p => p.name === defaultName);
