@@ -278,51 +278,93 @@ const printToSystemPrinter = async (printerName, printData, dateStr) => {
 
 // Open print preview window
 const openPrintPreview = (printData, dateStr, dateIso) => {
-  // 计算商品汇总数据
-  const productSummary = {}
+  // 计算商品汇总数据 - 按前三层（大类-子类-商品分类）分组
+  const productGroupSummary = {}
   let grandTotal = 0
 
   printData.forEach(order => {
     const customerInfo = order.customer_info || {}
     if (order.items && order.items.length > 0) {
       order.items.forEach(item => {
-        // 使用小类-商品名作为key（不含大类）
-        const nameWithoutMainCategory = `${item.product_category || ''}-${item.name || ''}`
-        const key = nameWithoutMainCategory
-        if (!productSummary[key]) {
-          productSummary[key] = {
+        // 使用前三层作为分组key：大类-子类-商品分类
+        const groupKey = `${item.category || ''}-${item.subcategory || ''}-${item.product_category || ''}`
+
+        if (!productGroupSummary[groupKey]) {
+          productGroupSummary[groupKey] = {
             category: item.category || '',
-            name: nameWithoutMainCategory,
+            subcategory: item.subcategory || '',
+            productCategory: item.product_category || '',
+            products: {},  // 存储该分组下的各个商品及其数量
+            totalQuantity: 0
+          }
+        }
+
+        // 在该分组下记录具体商品
+        const productName = item.name || ''
+        if (!productGroupSummary[groupKey].products[productName]) {
+          productGroupSummary[groupKey].products[productName] = {
+            name: productName,
             quantity: 0,
             unit: item.unit || '份'
           }
         }
-        productSummary[key].quantity += item.quantity
+        productGroupSummary[groupKey].products[productName].quantity += item.quantity
+        productGroupSummary[groupKey].totalQuantity += item.quantity
       })
     }
     grandTotal += customerInfo.total_amount || 0
   })
 
-  // 按大类排序（花馍优先，然后果蔬），并生成HTML
-  const sortedProducts = Object.values(productSummary).sort((a, b) => {
-    const order = { '花馍': 1, '果蔬': 2 }
-    const aOrder = order[a.category] || 999
-    const bOrder = order[b.category] || 999
-    return aOrder - bOrder
+  // 按大类、子类、商品分类排序
+  const sortedGroups = Object.values(productGroupSummary).sort((a, b) => {
+    // 首先按大类排序
+    const categoryOrder = { '花馍': 1, '果蔬': 2 }
+    const aCategoryOrder = categoryOrder[a.category] || 999
+    const bCategoryOrder = categoryOrder[b.category] || 999
+    if (aCategoryOrder !== bCategoryOrder) {
+      return aCategoryOrder - bCategoryOrder
+    }
+
+    // 大类相同，按子类排序
+    if (a.subcategory !== b.subcategory) {
+      return a.subcategory.localeCompare(b.subcategory, 'zh-CN')
+    }
+
+    // 子类相同，按商品分类排序
+    return a.productCategory.localeCompare(b.productCategory, 'zh-CN')
   })
 
-  let lastCategory = ''
-  const productSummaryRows = sortedProducts.map((product) => {
-    const showCategory = product.category !== lastCategory
-    const categoryDisplay = showCategory ? product.category : ''
-    lastCategory = product.category
+  // 生成HTML表格行
+  const productSummaryRows = []
+  sortedGroups.forEach(group => {
+    const products = Object.values(group.products)
 
-    return '<tr>' +
-      '<td style="text-align: center;">' + categoryDisplay + '</td>' +
-      '<td>' + product.name + '</td>' +
-      '<td style="text-align: center; font-weight: bold; font-size: 20px;">' + product.quantity + ' ' + product.unit + '</td>' +
-    '</tr>'
-  }).join('')
+    // 第一行：显示第三层分类名称和总数量
+    productSummaryRows.push(
+      '<tr>' +
+        '<td style="text-align: center; font-weight: bold; background-color: #f5f5f5;">' +
+          group.productCategory +
+        '</td>' +
+        '<td style="background-color: #f5f5f5;"></td>' +
+        '<td style="text-align: center; font-weight: bold; font-size: 20px; background-color: #f5f5f5;">' +
+          group.totalQuantity + ' ' + (products[0]?.unit || '份') +
+        '</td>' +
+      '</tr>'
+    )
+
+    // 后续行：显示具体商品名称，左侧缩进对齐
+    products.forEach(product => {
+      productSummaryRows.push(
+        '<tr>' +
+          '<td></td>' +
+          '<td style="padding-left: 30px;">' + product.name + '</td>' +
+          '<td style="text-align: center;">' + product.quantity + ' ' + product.unit + '</td>' +
+        '</tr>'
+      )
+    })
+  })
+
+  const productSummaryRowsHtml = productSummaryRows.join('')
 
   const orderDetailsRows = printData.map((order, index) => {
     const customerInfo = order.customer_info || {}
@@ -401,7 +443,7 @@ const openPrintPreview = (printData, dateStr, dateIso) => {
             '<' + '/tr>' +
           '<' + '/thead>' +
           '<' + 'tbody>' +
-            (productSummaryRows || '<' + 'tr><' + 'td colspan="3" style="text-align: center;">暂无商品数据<' + '/td><' + '/tr>') +
+            (productSummaryRowsHtml || '<' + 'tr><' + 'td colspan="3" style="text-align: center;">暂无商品数据<' + '/td><' + '/tr>') +
           '<' + '/tbody>' +
         '<' + '/table>' +
         '<' + 'h2>📋 用户订单明细<' + '/h2>' +
