@@ -7,6 +7,25 @@
         <span class="sub-title">生产/订单录入</span>
       </div>
       <div class="header-right">
+        <!-- 字体大小控制按钮组 -->
+        <div class="font-size-controls">
+          <el-tooltip content="放大字体" placement="bottom">
+            <el-button type="info" size="small" @click="increaseFontSize">
+              <el-icon><ZoomIn /></el-icon>
+            </el-button>
+          </el-tooltip>
+          <el-tooltip content="缩小字体" placement="bottom">
+            <el-button type="info" size="small" @click="decreaseFontSize">
+              <el-icon><ZoomOut /></el-icon>
+            </el-button>
+          </el-tooltip>
+          <el-tooltip content="恢复默认字体" placement="bottom">
+            <el-button type="info" size="small" @click="resetFontSize">
+              <el-icon><Refresh /></el-icon>
+            </el-button>
+          </el-tooltip>
+        </div>
+
         <el-button type="success" @click="handleOpenGoodsManager">
           <el-icon><Setting /></el-icon>
           商品管理
@@ -464,15 +483,40 @@
 </template>
 
 <script setup>
-import { ref, computed, reactive, nextTick, onMounted, watch } from 'vue'
+import { ref, computed, reactive, nextTick, onMounted, watch, getCurrentInstance } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { User, Goods, Search, Printer, Check, Delete, View, Setting, Plus, Close } from '@element-plus/icons-vue'
+import { User, Goods, Search, Printer, Check, Delete, View, Setting, Plus, Close, ZoomIn, ZoomOut, Refresh } from '@element-plus/icons-vue'
 import PrintDialog from './components/PrintDialog.vue'
 import GoodsManager from './components/GoodsManager.vue'
 import dayjs from 'dayjs'
 
 const customerFormRef = ref()
 const goodsManagerRef = ref()
+
+// 获取当前实例以访问全局字体方法
+const instance = getCurrentInstance()
+
+// 字体控制方法
+const increaseFontSize = () => {
+  if (instance?.appContext?.app?.config?.globalProperties?.$increaseFontSize) {
+    instance.appContext.app.config.globalProperties.$increaseFontSize()
+    ElMessage.success('字体已放大')
+  }
+}
+
+const decreaseFontSize = () => {
+  if (instance?.appContext?.app?.config?.globalProperties?.$decreaseFontSize) {
+    instance.appContext.app.config.globalProperties.$decreaseFontSize()
+    ElMessage.success('字体已缩小')
+  }
+}
+
+const resetFontSize = () => {
+  if (instance?.appContext?.app?.config?.globalProperties?.$resetFontSize) {
+    instance.appContext.app.config.globalProperties.$resetFontSize()
+    ElMessage.success('字体已恢复默认大小')
+  }
+}
 
 // 快捷输入相关数据
 const quickInputs = ref([])
@@ -1681,6 +1725,7 @@ watch(
   --background-color: #FFF5F5;
   --text-main: #2C3E50;
   --border-radius: 8px;
+  --font-scale: 1;
 }
 
 .app-container {
@@ -1689,6 +1734,7 @@ watch(
   min-height: 100vh;
   padding: 20px;
   color: #2C3E50;
+  font-size: calc(14px * var(--font-scale));
 }
 
 /* Header */
@@ -1718,6 +1764,32 @@ watch(
   }
 
   .header-right {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+
+    .font-size-controls {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      padding: 5px;
+      background-color: #f8f9fa;
+      border-radius: 6px;
+      border: 1px solid #e9ecef;
+
+      .el-button {
+        background-color: #6c757d;
+        border-color: #6c757d;
+        margin-right: 0;
+        padding: 8px;
+
+        &:hover {
+          background-color: #5a6268;
+          border-color: #5a6268;
+        }
+      }
+    }
+
     .el-button {
       background-color: #E74C3C;
       border-color: #E74C3C;
@@ -1764,8 +1836,8 @@ watch(
   display: flex;
   align-items: center;
   font-weight: bold;
-  font-size: 16px;
-  
+  font-size: calc(16px * var(--font-scale, 1));
+
   .el-icon {
     margin-right: 8px;
     color: #E74C3C;
@@ -1779,7 +1851,7 @@ watch(
   // 确保表单验证错误消息正确显示
   :deep(.el-form-item__error) {
     color: #f56c6c;
-    font-size: 12px;
+    font-size: calc(12px * var(--font-scale, 1));
     line-height: 1;
     padding-top: 4px;
     position: absolute;
@@ -1841,7 +1913,7 @@ watch(
   .quick-inputs-header {
     display: flex;
     align-items: center;
-    font-size: 14px;
+    font-size: calc(14px * var(--font-scale, 1));
     color: #666;
     margin-bottom: 8px;
   }
@@ -1891,7 +1963,7 @@ watch(
   display: flex;
   align-items: center;
   justify-content: space-between;
-  font-size: 14px;
+  font-size: calc(14px * var(--font-scale, 1));
   padding-right: 8px;
   height: 40px; /* 增加行高方便点击 */
   cursor: pointer;
@@ -1911,7 +1983,7 @@ watch(
   .is-category {
     font-weight: bold;
     color: #2c3e50;
-    font-size: 15px;
+    font-size: calc(15px * var(--font-scale, 1));
 
     &:hover {
       color: #E74C3C;
@@ -1928,11 +2000,12 @@ watch(
 
   .price-tag {
     font-weight: bold;
+    font-size: calc(12px * var(--font-scale, 1));
   }
 
   .unit-text {
     color: #999;
-    font-size: 12px;
+    font-size: calc(12px * var(--font-scale, 1));
   }
 }
 
@@ -1964,7 +2037,7 @@ watch(
   }
   
   .text-secondary {
-    font-size: 12px;
+    font-size: calc(12px * var(--font-scale, 1));
     color: #909399;
     margin-top: 4px;
   }
@@ -1988,13 +2061,13 @@ watch(
     display: flex;
     justify-content: space-between;
     align-items: center;
-    font-size: 18px;
+    font-size: calc(18px * var(--font-scale, 1));
     font-weight: bold;
     margin-bottom: 15px;
-    
+
     .total-price {
       color: #E74C3C;
-      font-size: 24px;
+      font-size: calc(24px * var(--font-scale, 1));
     }
   }
   
@@ -2086,7 +2159,7 @@ watch(
       }
 
       .order-item {
-        font-size: 13px;
+        font-size: calc(13px * var(--font-scale, 1));
         line-height: 1.4;
         margin-bottom: 4px;
         color: #606266;
@@ -2099,7 +2172,7 @@ watch(
       .price-text {
         font-weight: bold;
         color: #E74C3C;
-        font-size: 15px;
+        font-size: calc(15px * var(--font-scale, 1));
       }
 
       .el-tag {
@@ -2122,5 +2195,73 @@ watch(
   .el-empty {
     padding: 40px 0;
   }
+}
+</style>
+
+<style>
+/* 全局字体缩放样式 */
+:root {
+  --font-scale: 1;
+}
+
+/* 应用字体缩放到所有元素 */
+* {
+  font-size: calc(var(--original-font-size, 14px) * var(--font-scale));
+}
+
+/* 特殊元素保持相对大小 */
+h1 {
+  --original-font-size: 24px;
+  font-size: calc(24px * var(--font-scale));
+}
+
+h2 {
+  --original-font-size: 20px;
+  font-size: calc(20px * var(--font-scale));
+}
+
+h3 {
+  --original-font-size: 18px;
+  font-size: calc(18px * var(--font-scale));
+}
+
+.el-button {
+  --original-font-size: 14px;
+  font-size: calc(14px * var(--font-scale));
+}
+
+.el-input {
+  --original-font-size: 14px;
+  font-size: calc(14px * var(--font-scale));
+}
+
+.el-form-item__label {
+  --original-font-size: 14px;
+  font-size: calc(14px * var(--font-scale));
+}
+
+.el-card {
+  --original-font-size: 14px;
+  font-size: calc(14px * var(--font-scale));
+}
+
+.el-table {
+  --original-font-size: 14px;
+  font-size: calc(14px * var(--font-scale));
+}
+
+.el-tag {
+  --original-font-size: 12px;
+  font-size: calc(12px * var(--font-scale));
+}
+
+.el-dialog {
+  --original-font-size: 14px;
+  font-size: calc(14px * var(--font-scale));
+}
+
+.el-message {
+  --original-font-size: 14px;
+  font-size: calc(14px * var(--font-scale));
 }
 </style>
