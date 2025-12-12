@@ -573,53 +573,42 @@ const handleSaveAll = async () => {
 }
 
 // 将树形结构转换回原始 goods.json 格式
-// 原格式: {"goods":[{"花馍":[{"结婚":[{"上头糕":[{"百年好合":398},...]},...]},...]},...]
+// 原格式: {"goods":{"枣糕":{"上头糕":{"大花":{"百年好合":398,...},...},...},...}}
 const convertTreeToApiData = (nodes) => {
-  const result = []
+  const result = {}
 
   nodes.forEach(categoryNode => {
     if (!categoryNode.isCategory) return
 
-    // 第1层：主分类 (花馍、果蔬)
-    const categoryObj = {}
-    categoryObj[categoryNode.label] = []
+    // 第1层：主分类 (枣糕、果蔬) - 对象
+    result[categoryNode.label] = {}
 
     if (categoryNode.children) {
       categoryNode.children.forEach(subcategoryNode => {
         if (!subcategoryNode.isCategory) return
 
-        // 第2层：子分类 (结婚、订婚、生日)
-        const subcategoryObj = {}
-        subcategoryObj[subcategoryNode.label] = []
+        // 第2层：子分类 (上头糕、剃头糕) - 对象
+        result[categoryNode.label][subcategoryNode.label] = {}
 
         if (subcategoryNode.children) {
           subcategoryNode.children.forEach(thirdLevelNode => {
             if (!thirdLevelNode.isCategory) return
 
-            // 第3层：产品分类 (上头糕、剃头糕)
-            const thirdLevelObj = {}
-            thirdLevelObj[thirdLevelNode.label] = []
+            // 第3层：产品分类 (大花、小花) - 对象
+            result[categoryNode.label][subcategoryNode.label][thirdLevelNode.label] = {}
 
             if (thirdLevelNode.children) {
               thirdLevelNode.children.forEach(productNode => {
                 if (productNode.isCategory) return
 
-                // 第4层：具体商品 {"百年好合": 398}
-                const productObj = {}
-                productObj[productNode.label] = productNode.price || 0
-                thirdLevelObj[thirdLevelNode.label].push(productObj)
+                // 第4层：具体商品 - 商品名: 价格
+                result[categoryNode.label][subcategoryNode.label][thirdLevelNode.label][productNode.label] = productNode.price || 0
               })
             }
-
-            subcategoryObj[subcategoryNode.label].push(thirdLevelObj)
           })
         }
-
-        categoryObj[categoryNode.label].push(subcategoryObj)
       })
     }
-
-    result.push(categoryObj)
   })
 
   return result
@@ -629,7 +618,7 @@ const convertTreeToApiData = (nodes) => {
 const handleExport = () => {
   try {
     const apiData = convertTreeToApiData(goodsData)
-    const jsonString = JSON.stringify({ goods: [apiData] }, null, 2)
+    const jsonString = JSON.stringify({ goods: apiData }, null, 2)
     const blob = new Blob([jsonString], { type: 'application/json' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')

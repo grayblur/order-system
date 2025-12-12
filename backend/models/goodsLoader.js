@@ -20,8 +20,9 @@ class GoodsLoader {
 
       const fileContent = fs.readFileSync(this.filePath, 'utf8');
       const data = JSON.parse(fileContent);
-      this.goodsData = data.goods || [];
-      console.log(`✅ 商品数据加载成功，共 ${this.goodsData.length} 个分类`);
+      this.goodsData = data.goods || {};
+      const categoryCount = Object.keys(this.goodsData).length;
+      console.log(`✅ 商品数据加载成功，共 ${categoryCount} 个分类`);
       return this.goodsData;
     } catch (error) {
       console.error('加载商品数据失败:', error.message);
@@ -39,57 +40,25 @@ class GoodsLoader {
 
     const tree = {};
 
-    this.goodsData.forEach(categoryItem => {
-      const categoryName = Object.keys(categoryItem)[0];
-      const categoryContent = categoryItem[categoryName];
+    Object.keys(this.goodsData).forEach(categoryName => {
+      const categoryContent = this.goodsData[categoryName];
 
       if (!tree[categoryName]) {
         tree[categoryName] = {};
       }
 
-      categoryContent.forEach(subcategoryItem => {
-        const subcategoryName = Object.keys(subcategoryItem)[0];
-        const products = subcategoryItem[subcategoryName];
+      Object.keys(categoryContent).forEach(subcategoryName => {
+        const products = categoryContent[subcategoryName];
 
         if (!tree[categoryName][subcategoryName]) {
           tree[categoryName][subcategoryName] = [];
         }
 
-        // 处理产品数据 - 第三层是分类，第四层是具体商品
-        products.forEach(productItem => {
-          const productCategoryName = Object.keys(productItem)[0];
-          const productItems = productItem[productCategoryName];
+        // 处理产品数据 - 第三层是产品分类，第四层是具体商品
+        Object.keys(products).forEach(productCategoryName => {
+          const productItems = products[productCategoryName];
 
-          // 处理第四层的具体商品
-          if (Array.isArray(productItems)) {
-            if (productItems.length >= 2 && typeof productItems[0] === 'string') {
-              // 格式如 ["1套", 260]
-              const productName = productItems[0];
-              const productPrice = productItems[1];
-              const product = {
-                name: productName,
-                price: productPrice,
-                category: productCategoryName // 保留第三层分类信息
-              };
-              tree[categoryName][subcategoryName].push(product);
-            } else {
-              // 格式如 [{"百年好合":398}, {"喜结良缘":398}]
-              productItems.forEach(item => {
-                if (typeof item === 'object' && !Array.isArray(item)) {
-                  Object.keys(item).forEach(productName => {
-                    const productPrice = item[productName];
-                    const product = {
-                      name: productName,
-                      price: productPrice,
-                      category: productCategoryName // 保留第三层分类信息
-                    };
-                    tree[categoryName][subcategoryName].push(product);
-                  });
-                }
-              });
-            }
-          } else if (typeof productItems === 'object' && productItems !== null) {
-            // 格式如 {"百年好合":398, "喜结良缘":398}
+          if (typeof productItems === 'object' && productItems !== null) {
             Object.keys(productItems).forEach(productName => {
               const productPrice = productItems[productName];
               const product = {
@@ -118,53 +87,17 @@ class GoodsLoader {
     const flatList = [];
     let id = 1;
 
-    this.goodsData.forEach(categoryItem => {
-      const categoryName = Object.keys(categoryItem)[0];
-      const categoryContent = categoryItem[categoryName];
+    Object.keys(this.goodsData).forEach(categoryName => {
+      const categoryContent = this.goodsData[categoryName];
 
-      categoryContent.forEach(subcategoryItem => {
-        const subcategoryName = Object.keys(subcategoryItem)[0];
-        const products = subcategoryItem[subcategoryName];
+      Object.keys(categoryContent).forEach(subcategoryName => {
+        const products = categoryContent[subcategoryName];
 
-        products.forEach(productItem => {
-          const productCategoryName = Object.keys(productItem)[0];
-          const productItems = productItem[productCategoryName];
+        // 处理第四层的具体商品
+        Object.keys(products).forEach(productCategoryName => {
+          const productItems = products[productCategoryName];
 
-          // 处理第四层的具体商品
-          if (Array.isArray(productItems)) {
-            if (productItems.length >= 2 && typeof productItems[0] === 'string') {
-              // 格式如 ["1套", 260]
-              const productName = productItems[0];
-              const productPrice = productItems[1];
-              flatList.push({
-                id: id++,
-                category: categoryName,
-                subcategory: subcategoryName,
-                product_category: productCategoryName, // 第三层分类
-                product_name: productName, // 第四层商品名
-                price: productPrice,
-                unit: productName // 使用商品名作为单位
-              });
-            } else {
-              // 格式如 [{"百年好合":398}, {"喜结良缘":398}]
-              productItems.forEach(item => {
-                if (typeof item === 'object' && !Array.isArray(item)) {
-                  Object.keys(item).forEach(productName => {
-                    const productPrice = item[productName];
-                    flatList.push({
-                      id: id++,
-                      category: categoryName,
-                      subcategory: subcategoryName,
-                      product_category: productCategoryName, // 第三层分类
-                      product_name: productName, // 第四层商品名
-                      price: productPrice,
-                      unit: '个'
-                    });
-                  });
-                }
-              });
-            }
-          } else if (typeof productItems === 'object' && productItems !== null) {
+          if (typeof productItems === 'object' && productItems !== null) {
             Object.keys(productItems).forEach(productName => {
               const productPrice = productItems[productName];
               flatList.push({
@@ -174,7 +107,7 @@ class GoodsLoader {
                 product_category: productCategoryName, // 第三层分类
                 product_name: productName, // 第四层商品名
                 price: productPrice,
-                unit: '个'
+                unit: productName.includes('个') ? '个' : '套' // 根据商品名判断单位
               });
             });
           }
@@ -193,7 +126,7 @@ class GoodsLoader {
       this.load();
     }
 
-    return this.goodsData.map(item => Object.keys(item)[0]);
+    return Object.keys(this.goodsData);
   }
 
   /**
@@ -204,13 +137,12 @@ class GoodsLoader {
       this.load();
     }
 
-    const categoryItem = this.goodsData.find(item => Object.keys(item)[0] === category);
-    if (!categoryItem) {
+    const categoryContent = this.goodsData[category];
+    if (!categoryContent) {
       return [];
     }
 
-    const categoryContent = categoryItem[category];
-    return categoryContent.map(item => Object.keys(item)[0]);
+    return Object.keys(categoryContent);
   }
 
   /**
@@ -221,60 +153,30 @@ class GoodsLoader {
       this.load();
     }
 
-    const categoryItem = this.goodsData.find(item => Object.keys(item)[0] === category);
-    if (!categoryItem) {
+    const categoryContent = this.goodsData[category];
+    if (!categoryContent) {
       return [];
     }
 
-    const categoryContent = categoryItem[category];
-    const subcategoryItem = categoryContent.find(item => Object.keys(item)[0] === subcategory);
-    if (!subcategoryItem) {
+    const products = categoryContent[subcategory];
+    if (!products) {
       return [];
     }
 
-    const products = subcategoryItem[subcategory];
     const result = [];
 
-    products.forEach(productItem => {
-      const productCategoryName = Object.keys(productItem)[0];
-      const productItems = productItem[productCategoryName];
+    // 处理第四层的具体商品
+    Object.keys(products).forEach(productCategoryName => {
+      const productItems = products[productCategoryName];
 
-      // 处理第四层的具体商品
-      if (Array.isArray(productItems)) {
-        if (productItems.length >= 2 && typeof productItems[0] === 'string') {
-          // 格式如 ["1套", 260]
-          const productName = productItems[0];
-          const productPrice = productItems[1];
-          result.push({
-            name: productName,
-            price: productPrice,
-            category: productCategoryName,
-            unit: productName
-          });
-        } else {
-          // 格式如 [{"百年好合":398}, {"喜结良缘":398}]
-          productItems.forEach(item => {
-            if (typeof item === 'object' && !Array.isArray(item)) {
-              Object.keys(item).forEach(productName => {
-                const productPrice = item[productName];
-                result.push({
-                  name: productName,
-                  price: productPrice,
-                  category: productCategoryName,
-                  unit: '个'
-                });
-              });
-            }
-          });
-        }
-      } else if (typeof productItems === 'object' && productItems !== null) {
+      if (typeof productItems === 'object' && productItems !== null) {
         Object.keys(productItems).forEach(productName => {
           const productPrice = productItems[productName];
           result.push({
             name: productName,
             price: productPrice,
             category: productCategoryName,
-            unit: '个'
+            unit: productName.includes('个') ? '个' : '套'
           });
         });
       }
@@ -285,12 +187,11 @@ class GoodsLoader {
 
   /**
    * 保存商品数据到文件
-   * @param {Array} newGoodsData - 商品数据数组，格式与 goods.json 中的 goods 字段一致
    */
   saveGoodsData(newGoodsData) {
     try {
-      // newGoodsData 应该是数组格式 [{"花馍":[...]}, {"果蔬":[...]}]
-      const data = { goods: Array.isArray(newGoodsData) ? newGoodsData : [newGoodsData] };
+      // newGoodsData 应该是对象格式 {"花馍": {...}, "果蔬": {...}}
+      const data = { goods: newGoodsData };
       fs.writeFileSync(this.filePath, JSON.stringify(data, null, 2), 'utf8');
       this.goodsData = data.goods;
       console.log('✅ 商品数据保存成功');
@@ -312,57 +213,36 @@ class GoodsLoader {
     const results = [];
     const lowerKeyword = keyword.toLowerCase();
 
-    this.goodsData.forEach(categoryItem => {
-      const categoryName = Object.keys(categoryItem)[0];
-      const categoryContent = categoryItem[categoryName];
+    Object.keys(this.goodsData).forEach(categoryName => {
+      const categoryContent = this.goodsData[categoryName];
 
-      categoryContent.forEach(subcategoryItem => {
-        const subcategoryName = Object.keys(subcategoryItem)[0];
-        const products = subcategoryItem[subcategoryName];
+      Object.keys(categoryContent).forEach(subcategoryName => {
+        const products = categoryContent[subcategoryName];
 
-        products.forEach(productItem => {
-          const productCategoryName = Object.keys(productItem)[0];
-          const productItems = productItem[productCategoryName];
+        // 处理第四层的具体商品
+        Object.keys(products).forEach(productCategoryName => {
+          const productItems = products[productCategoryName];
 
-          // 处理第四层的具体商品
-          const processProduct = (productName, productPrice) => {
-            // 检查名称或分类是否匹配
-            if (
-              productName.toLowerCase().includes(lowerKeyword) ||
-              productCategoryName.toLowerCase().includes(lowerKeyword) ||
-              categoryName.toLowerCase().includes(lowerKeyword) ||
-              subcategoryName.toLowerCase().includes(lowerKeyword)
-            ) {
-              results.push({
-                name: productName,
-                price: productPrice,
-                category: categoryName,
-                subcategory: subcategoryName,
-                product_category: productCategoryName,
-                unit: '个'
-              });
-            }
-          };
-
-          if (Array.isArray(productItems)) {
-            if (productItems.length >= 2 && typeof productItems[0] === 'string') {
-              // 格式如 ["1套", 260]
-              const productName = productItems[0];
-              const productPrice = productItems[1];
-              processProduct(productName, productPrice);
-            } else {
-              // 格式如 [{"百年好合":398}, {"喜结良缘":398}]
-              productItems.forEach(item => {
-                if (typeof item === 'object' && !Array.isArray(item)) {
-                  Object.keys(item).forEach(productName => {
-                    processProduct(productName, item[productName]);
-                  });
-                }
-              });
-            }
-          } else if (typeof productItems === 'object' && productItems !== null) {
+          if (typeof productItems === 'object' && productItems !== null) {
             Object.keys(productItems).forEach(productName => {
-              processProduct(productName, productItems[productName]);
+              const productPrice = productItems[productName];
+
+              // 检查名称或分类是否匹配
+              if (
+                productName.toLowerCase().includes(lowerKeyword) ||
+                productCategoryName.toLowerCase().includes(lowerKeyword) ||
+                subcategoryName.toLowerCase().includes(lowerKeyword) ||
+                categoryName.toLowerCase().includes(lowerKeyword)
+              ) {
+                results.push({
+                  name: productName,
+                  price: productPrice,
+                  category: categoryName,
+                  subcategory: subcategoryName,
+                  product_category: productCategoryName,
+                  unit: productName.includes('个') ? '个' : '套'
+                });
+              }
             });
           }
         });
