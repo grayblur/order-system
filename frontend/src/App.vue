@@ -96,24 +96,28 @@
                       </el-button>
                     </div>
                     <div class="quick-inputs-list" v-if="quickInputs.length > 0">
-                      <el-tag
+                      <div
                         v-for="input in quickInputs"
                         :key="input.id"
-                        type="info"
-                        size="small"
-                        class="quick-input-tag"
-                        @click="applyQuickInput(input.content)"
+                        class="quick-input-wrapper"
                       >
-                        {{ input.content }}
+                        <el-tag
+                          type="info"
+                          size="small"
+                          class="quick-input-tag"
+                          @click="applyQuickInput(input.content)"
+                        >
+                          {{ input.content }}
+                        </el-tag>
                         <el-button
                           type="text"
                           size="small"
-                          @click.stop="deleteQuickInput(input.id)"
-                          style="margin-left: 5px; padding: 0;"
+                          class="quick-input-delete"
+                          @click="deleteQuickInput(input.id)"
                         >
                           <el-icon><Close /></el-icon>
                         </el-button>
-                      </el-tag>
+                      </div>
                     </div>
                   </div>
                 </el-form-item>
@@ -176,24 +180,28 @@
                   </el-button>
                 </div>
                 <div class="quick-inputs-list" v-if="notesQuickInputs.length > 0">
-                  <el-tag
+                  <div
                     v-for="input in notesQuickInputs"
                     :key="input.id"
-                    type="warning"
-                    size="small"
-                    class="quick-input-tag"
-                    @click="applyNotesQuickInput(input.content)"
+                    class="quick-input-wrapper"
                   >
-                    {{ input.content }}
+                    <el-tag
+                      type="warning"
+                      size="small"
+                      class="quick-input-tag"
+                      @click="applyNotesQuickInput(input.content)"
+                    >
+                      {{ input.content }}
+                    </el-tag>
                     <el-button
                       type="text"
                       size="small"
-                      @click.stop="deleteNotesQuickInput(input.id)"
-                      style="margin-left: 5px; padding: 0;"
+                      class="quick-input-delete"
+                      @click="deleteNotesQuickInput(input.id)"
                     >
                       <el-icon><Close /></el-icon>
                     </el-button>
-                  </el-tag>
+                  </div>
                 </div>
               </div>
             </el-form-item>
@@ -1848,6 +1856,13 @@ watch(
 .section-customer {
   border-top: 3px solid #E74C3C;
 
+  // 确保表单标签不换行
+  :deep(.el-form-item__label) {
+    white-space: nowrap;
+    overflow: visible;
+    min-width: calc(85px * var(--font-scale, 1));
+  }
+
   // 确保表单验证错误消息正确显示
   :deep(.el-form-item__error) {
     color: #f56c6c;
@@ -1923,21 +1938,57 @@ watch(
     flex-wrap: wrap;
     gap: 8px;
 
-    .quick-input-tag {
-      cursor: pointer;
-      transition: all 0.2s ease;
-      user-select: none;
+    .quick-input-wrapper {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      position: relative;
 
-      &:hover {
-        background-color: var(--primary-color);
-        color: white;
-        transform: translateY(-1px);
+      .quick-input-tag {
+        cursor: pointer;
+        transition: all 0.2s ease;
+        user-select: none;
+        -webkit-tap-highlight-color: transparent;
+
+        &:active {
+          background-color: #c0392b !important;
+          color: white !important;
+          border-color: #c0392b !important;
+          transform: scale(0.95);
+        }
+
+        // 针对触摸设备的额外支持
+        @media (hover: none) and (pointer: coarse) {
+          &:active {
+            background-color: #c0392b !important;
+            color: white !important;
+            border-color: #c0392b !important;
+          }
+        }
       }
 
-      .el-button {
+      // 确保 el-tag 内部元素也响应样式
+      :deep(.quick-input-tag.el-tag:active) {
+        background-color: #c0392b !important;
+        color: white !important;
+        border-color: #c0392b !important;
+      }
+
+      .quick-input-delete {
+        padding: 4px;
+        min-width: auto;
+        height: auto;
+        color: #909399;
+        transition: all 0.2s ease;
+
         &:hover {
-          background-color: rgba(255, 255, 255, 0.2);
+          color: #f56c6c;
+          background-color: #fef0f0;
           border-radius: 50%;
+        }
+
+        .el-icon {
+          font-size: calc(14px * var(--font-scale, 1));
         }
       }
     }
@@ -2237,7 +2288,9 @@ h3 {
 
 .el-form-item__label {
   --original-font-size: 14px;
-  font-size: calc(14px * var(--font-scale));
+  font-size: calc(14px * var(--font-scale)) !important;
+  white-space: nowrap !important;
+  overflow: visible !important;
 }
 
 .el-card {
@@ -2263,5 +2316,72 @@ h3 {
 .el-message {
   --original-font-size: 14px;
   font-size: calc(14px * var(--font-scale));
+}
+
+/* 日期选择器样式缩放 */
+.el-date-editor {
+  --original-font-size: 14px;
+  font-size: calc(14px * var(--font-scale)) !important;
+}
+
+.el-date-editor .el-input__inner {
+  --original-font-size: 14px;
+  font-size: calc(14px * var(--font-scale)) !important;
+  height: calc(32px * var(--font-scale)) !important;
+  line-height: calc(32px * var(--font-scale)) !important;
+}
+
+.el-date-editor .el-input__wrapper {
+  --original-font-size: 14px;
+  font-size: calc(14px * var(--font-scale)) !important;
+}
+
+/* 日期选择器弹出面板 */
+.el-picker-panel {
+  --original-font-size: 14px;
+  font-size: calc(14px * var(--font-scale)) !important;
+}
+
+.el-date-picker {
+  --original-font-size: 14px;
+  font-size: calc(14px * var(--font-scale)) !important;
+}
+
+.el-picker-panel__body {
+  --original-font-size: 14px;
+  font-size: calc(14px * var(--font-scale)) !important;
+}
+
+.el-date-table td {
+  --original-font-size: 14px;
+  font-size: calc(14px * var(--font-scale)) !important;
+  width: calc(32px * var(--font-scale)) !important;
+  height: calc(32px * var(--font-scale)) !important;
+}
+
+.el-date-table td span {
+  --original-font-size: 12px;
+  font-size: calc(12px * var(--font-scale)) !important;
+  width: calc(24px * var(--font-scale)) !important;
+  height: calc(24px * var(--font-scale)) !important;
+  line-height: calc(24px * var(--font-scale)) !important;
+}
+
+/* Textarea 样式缩放 */
+.el-textarea {
+  --original-font-size: 14px;
+  font-size: calc(14px * var(--font-scale)) !important;
+}
+
+.el-textarea__inner {
+  --original-font-size: 14px;
+  font-size: calc(14px * var(--font-scale)) !important;
+  line-height: calc(1.5 * var(--font-scale)) !important;
+}
+
+/* Input placeholder 文字缩放 */
+.el-input__inner::placeholder,
+.el-textarea__inner::placeholder {
+  font-size: calc(14px * var(--font-scale)) !important;
 }
 </style>
