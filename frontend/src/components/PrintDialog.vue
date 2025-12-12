@@ -402,7 +402,7 @@ const openPrintPreview = (printData, dateStr, dateIso) => {
     if (order.items && order.items.length > 0) {
       itemsHtml = order.items.map(item => {
         // 显示完整的大类-小类-商品名
-        const fullName = `${item.category || ''}-${item.product_category || ''}-${item.name || ''}`
+        const fullName = `${item.category || ''}-${item.subcategory || ''}-${item.product_category || ''}-${item.name || ''}`
         return '<li><span class="product-item-name">' + fullName + '</span> x ' + item.quantity + '</li>'
       }).join('')
     } else {
