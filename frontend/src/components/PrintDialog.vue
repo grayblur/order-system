@@ -4,6 +4,7 @@
     title="打印生产清单"
     width="400px"
     :before-close="handleClose"
+    @open="handleDialogOpen"
     align-center
   >
     <div class="print-dialog-content">
@@ -334,62 +335,141 @@ const openPrintPreview = (printData, dateStr, dateIso) => {
     grandTotal += customerInfo.total_amount || 0
   })
 
-  // 按大类、子类排序
-  const sortedSubcategories = Object.values(subcategoryGroups).sort((a, b) => {
-    // 首先按大类排序
-    const categoryOrder = { '枣糕': 1, '花馍': 1, '果蔬': 2 }
-    const aCategoryOrder = categoryOrder[a.category] || 999
-    const bCategoryOrder = categoryOrder[b.category] || 999
-    if (aCategoryOrder !== bCategoryOrder) {
-      return aCategoryOrder - bCategoryOrder
-    }
+  // 枣糕分类的固定排序顺序
+  const zaogaoOrder = [
+    '上头糕', '剃头糕', '大项圈', '小项圈', '上头馍',
+    '馄饨馍', '双馄饨', '石榴馍', '订婚花馍',
+    '馄饨花馍', '大龙凤'
+  ]
 
-    // 大类相同，按子类排序
-    return a.subcategory.localeCompare(b.subcategory, 'zh-CN')
+  // 果蔬分类的固定排序顺序
+  const guoshuOrder = [
+    '满月','百日',  '周岁', '12岁', '结婚', '过寿', '乔迁'
+  ]
+
+  // 按大类分组，然后在每个大类内按指定顺序排序
+  const categoryGroups = {}
+  Object.values(subcategoryGroups).forEach(group => {
+    const categoryName = group.category
+    if (!categoryGroups[categoryName]) {
+      categoryGroups[categoryName] = []
+    }
+    categoryGroups[categoryName].push(group)
+  })
+
+  // 大类排序顺序
+  const categoryOrder = ['枣糕', '果蔬']
+  const sortedCategories = []
+
+  // 先按固定顺序添加大类
+  categoryOrder.forEach(categoryName => {
+    if (categoryGroups[categoryName]) {
+      sortedCategories.push({
+        name: categoryName,
+        subcategories: categoryGroups[categoryName]
+      })
+      delete categoryGroups[categoryName]
+    }
+  })
+
+  // 添加剩余的大类（按名称排序）
+  Object.keys(categoryGroups).sort().forEach(categoryName => {
+    sortedCategories.push({
+      name: categoryName,
+      subcategories: categoryGroups[categoryName]
+    })
+  })
+
+  // 对每个大类内的子分类进行排序
+  sortedCategories.forEach(categoryGroup => {
+    if (categoryGroup.name === '枣糕') {
+      // 枣糕按固定顺序排序
+      categoryGroup.subcategories.sort((a, b) => {
+        const aIndex = zaogaoOrder.indexOf(a.subcategory)
+        const bIndex = zaogaoOrder.indexOf(b.subcategory)
+        if (aIndex !== -1 && bIndex !== -1) {
+          return aIndex - bIndex
+        }
+        if (aIndex !== -1) return -1
+        if (bIndex !== -1) return 1
+        return a.subcategory.localeCompare(b.subcategory, 'zh-CN')
+      })
+    } else if (categoryGroup.name === '果蔬') {
+      // 果蔬按固定顺序排序
+      categoryGroup.subcategories.sort((a, b) => {
+        const aIndex = guoshuOrder.indexOf(a.subcategory)
+        const bIndex = guoshuOrder.indexOf(b.subcategory)
+        if (aIndex !== -1 && bIndex !== -1) {
+          return aIndex - bIndex
+        }
+        if (aIndex !== -1) return -1
+        if (bIndex !== -1) return 1
+        return a.subcategory.localeCompare(b.subcategory, 'zh-CN')
+      })
+    } else {
+      // 其他大类按子分类名称排序
+      categoryGroup.subcategories.sort((a, b) => {
+        return a.subcategory.localeCompare(b.subcategory, 'zh-CN')
+      })
+    }
   })
 
   // 生成HTML表格行
   const productSummaryRows = []
-  sortedSubcategories.forEach(subcategoryGroup => {
-    const productCategories = Object.values(subcategoryGroup.productCategories).sort((a, b) => {
-      return a.name.localeCompare(b.name, 'zh-CN')
-    })
+  sortedCategories.forEach(categoryGroup => {
+    // 如果不是"其他"大类，先单独显示大类名称行
+    if (categoryGroup.name !== '其他') {
+      productSummaryRows.push(
+        '<tr>' +
+          '<td colspan="3" style="text-align: center; font-weight: bold; font-size: 18px; background-color: #f0f0f0; padding: 8px;">' +
+            '🌺 ' + categoryGroup.name + ' 🌺' +
+          '</td>' +
+        '</tr>'
+      )
+    }
 
-    // 计算该大分类（subcategory）的总数量
-    const subcategoryTotalQuantity = productCategories.reduce((sum, pc) => sum + pc.totalQuantity, 0)
+    // 处理该大类下的子分类
+    categoryGroup.subcategories.forEach(subcategoryGroup => {
+      const productCategories = Object.values(subcategoryGroup.productCategories).sort((a, b) => {
+        return a.name.localeCompare(b.name, 'zh-CN')
+      })
 
-    productCategories.forEach((productCategoryData, index) => {
-      const products = Object.values(productCategoryData.products)
+      // 计算该子分类的总数量
+      const subcategoryTotalQuantity = productCategories.reduce((sum, pc) => sum + pc.totalQuantity, 0)
 
-      // 生成商品名称列表：商品名(数量个)格式
-      const productsList = products.map(product =>
-        `${product.name}(${product.quantity}个)`
-      ).join('、')
+      productCategories.forEach((productCategoryData, index) => {
+        const products = Object.values(productCategoryData.products)
 
-      // 第一行显示子分类名称和总数量，后续行不显示（通过rowspan实现）
-      if (index === 0) {
-        productSummaryRows.push(
-          '<tr>' +
-            '<td style="text-align: center; font-weight: bold; vertical-align: middle;" rowspan="' + productCategories.length + '">' +
-              subcategoryGroup.subcategory +
-            '</td>' +
-            '<td style="padding-left: 10px;">' +
-              '<strong>' + productCategoryData.name + ':</strong> ' + productsList +
-            '</td>' +
-            '<td style="text-align: center; font-weight: bold; font-size: 20px; vertical-align: middle;" rowspan="' + productCategories.length + '">' +
-              subcategoryTotalQuantity + ' 个' +
-            '</td>' +
-          '</tr>'
-        )
-      } else {
-        productSummaryRows.push(
-          '<tr>' +
-            '<td style="padding-left: 10px;">' +
-              '<strong>' + productCategoryData.name + ':</strong> ' + productsList +
-            '</td>' +
-          '</tr>'
-        )
-      }
+        // 生成商品名称列表：商品名(数量个)格式
+        const productsList = products.map(product =>
+          `${product.name}(${product.quantity}个)`
+        ).join('、')
+
+        // 第一行显示子分类名称和总数量，后续行不显示（通过rowspan实现）
+        if (index === 0) {
+          productSummaryRows.push(
+            '<tr>' +
+              '<td style="text-align: center; font-weight: bold; vertical-align: middle; background-color: #f9f9f9;" rowspan="' + productCategories.length + '">' +
+                subcategoryGroup.subcategory +
+              '</td>' +
+              '<td style="padding-left: 10px;">' +
+                '<strong>' + productCategoryData.name + ':</strong> ' + productsList +
+              '</td>' +
+              '<td style="text-align: center; font-weight: bold; font-size: 20px; vertical-align: middle; background-color: #f9f9f9;" rowspan="' + productCategories.length + '">' +
+                subcategoryTotalQuantity + ' 个' +
+              '</td>' +
+            '</tr>'
+          )
+        } else {
+          productSummaryRows.push(
+            '<tr>' +
+              '<td style="padding-left: 10px;">' +
+                '<strong>' + productCategoryData.name + ':</strong> ' + productsList +
+              '</td>' +
+            '</tr>'
+          )
+        }
+      })
     })
   })
 
@@ -417,21 +497,30 @@ const openPrintPreview = (printData, dateStr, dateIso) => {
       ? '<span style="font-size: 24px; font-weight: bold;">✓</span>'
       : '<span style="font-size: 24px; font-weight: bold;">⭕</span>'
 
-    return '<tr>' +
-      '<td>' +
-        '<strong>' + (customerInfo.name || '未知客户') + '</strong><br>' +
-        '<span style="font-size: 14px; color: #555;">' + (customerInfo.address || '无地址') + '</span>' +
-      '</td>' +
-      '<td>' + (customerInfo.phone || '无电话') + '</td>' +
-      '<td>' +
-        '<ul class="product-list">' +
-          itemsHtml +
-        '</ul>' +
-      '</td>' +
-      '<td class="amount">¥ ' + totalAmount.toFixed(2) + '</td>' +
-      '<td style="text-align: center;">' + settlementStatus + '</td>' +
-      '<td>' + (customerInfo.notes || '无') + '</td>' +
-    '</tr>'
+    return '<div class="order-card">' +
+      '<div class="order-header">' +
+        '<div class="customer-info">' +
+          '<h3 class="customer-name">' + (customerInfo.name || '未知客户') + '</h3>' +
+          '<div class="contact-details">' +
+            '<span class="phone">📞 ' + (customerInfo.phone || '无电话') + '</span>' +
+            '<span class="address">📍 ' + (customerInfo.address || '无地址') + '</span>' +
+          '</div>' +
+        '</div>' +
+        '<div class="order-summary">' +
+          '<div class="amount">¥ ' + totalAmount.toFixed(2) + '</div>' +
+          '<div class="settlement-status">' + settlementStatus + '</div>' +
+        '</div>' +
+      '</div>' +
+      '<div class="order-content">' +
+        '<div class="products-section">' +
+          '<h4>📦 商品清单</h4>' +
+          '<ul class="product-list">' +
+            itemsHtml +
+          '</ul>' +
+        '</div>' +
+        (customerInfo.notes ? '<div class="notes-section"><h4>📝 备注信息</h4><p>' + customerInfo.notes + '</p></div>' : '') +
+      '</div>' +
+    '</div>'
   }).join('')
 
   // 创建打印预览HTML内容
@@ -453,9 +542,9 @@ const openPrintPreview = (printData, dateStr, dateIso) => {
     const scriptEnd = '<' + '/script>'
 
     return htmlStart + htmlTag + headTag + metaTag + viewportTag + titleTag + styleTag +
-      'body{font-family:"Microsoft YaHei","SimSun",sans-serif;background-color:#f0f0f0;padding:20px;color:#333;font-size:18px}.container{max-width:210mm;margin:0 auto;background:white;padding:20px;box-shadow:0 0 10px rgba(0,0,0,0.1)}h1{text-align:center;font-size:28px;margin-bottom:20px;border-bottom:2px solid #000;padding-bottom:10px}h2{font-size:22px;margin-top:30px;margin-bottom:10px;border-left:5px solid #333;padding-left:10px}.summary-info{background-color:#f8f9fa;padding:15px;border-radius:6px;margin-bottom:20px;display:flex;justify-content:space-between;align-items:center;font-size:18px}table{width:100%;border-collapse:collapse;margin-bottom:10px;font-size:18px}th,td{border:1px solid #000;padding:8px;text-align:left;vertical-align:top}th{background-color:#eee;font-weight:bold;text-align:center}.product-list{margin:0;padding-left:0;list-style:none}.product-list li{margin-bottom:4px}.product-item-name{font-weight:bold}.amount{text-align:right;font-family:Arial,sans-serif}.print-btn{display:block;width:200px;margin:0 auto 20px;padding:10px;background-color:#007bff;color:white;text-align:center;border:none;cursor:pointer;font-size:20px;border-radius:4px}.print-btn:hover{background-color:#0056b3}@media print{@page{size:A4;margin:1cm}body{background-color:white;padding:0;-webkit-print-color-adjust:exact}.container{width:100%;max-width:none;box-shadow:none;padding:0;margin:0}.print-btn{display:none}tr{page-break-inside:avoid}h2{margin-top:20px}}' +
+      'body{font-family:"Microsoft YaHei","SimSun",sans-serif;background-color:#f0f0f0;padding:20px;color:#333;font-size:18px}.container{max-width:210mm;margin:0 auto;background:white;padding:20px;box-shadow:0 0 10px rgba(0,0,0,0.1)}h1{text-align:center;font-size:28px;margin-bottom:20px;border-bottom:2px solid #000;padding-bottom:10px}h2{font-size:22px;margin-top:30px;margin-bottom:10px;border-left:5px solid #333;padding-left:10px}.summary-info{background-color:#f8f9fa;padding:15px;border-radius:6px;margin-bottom:20px;display:flex;justify-content:space-between;align-items:center;font-size:18px}table{width:100%;border-collapse:collapse;margin-bottom:10px;font-size:18px}th,td{border:1px solid #000;padding:8px;text-align:left;vertical-align:top}th{background-color:#eee;font-weight:bold;text-align:center}.print-btn{display:flex;align-items:center;justify-content:center;gap:8px;width:300px;margin:0 auto 20px;padding:15px 20px;background:linear-gradient(135deg,#28a745 0%,#20c997 100%);color:white;text-align:center;border:none;cursor:pointer;font-size:18px;font-weight:bold;border-radius:8px;box-shadow:0 4px 12px rgba(40,167,69,0.3);transition:all 0.3s ease}.print-btn:hover{background:linear-gradient(135deg,#218838 0%,#1ea085 100%);transform:translateY(-2px);box-shadow:0 6px 16px rgba(40,167,69,0.4)}.print-btn:before{content:"🖨️";font-size:24px}@media screen{body{background-color:#f0f0f0}.container{max-width:210mm;margin:0 auto;background:white;padding:20px;box-shadow:0 0 10px rgba(0,0,0,0.1)}}.order-cards-container{display:grid;grid-template-columns:repeat(2,1fr);gap:15px;margin-top:20px}.order-card{border:2px solid #ddd;border-radius:8px;background:#fff;box-shadow:0 2px 4px rgba(0,0,0,0.1);page-break-inside:avoid}.order-header{display:flex;justify-content:space-between;align-items:center;padding:12px 15px;background:linear-gradient(135deg,#f8f9fa 0%,e9ecef 100%);border-bottom:1px solid #ddd}.customer-info{flex:1}.customer-name{margin:0 0 5px 0;font-size:20px;color:#333}.contact-details{display:flex;flex-direction:column;gap:3px}.phone,.address{font-size:14px;color:#666}.order-summary{text-align:right}.amount{font-size:18px;font-weight:bold;color:#2c3e50;margin-bottom:5px}.settlement-status{text-align:right}.order-content{padding:15px}.products-section{margin-bottom:12px}.products-section h4{margin:0 0 8px 0;font-size:16px;color:#333;border-bottom:1px solid #eee;padding-bottom:4px}.product-list{margin:0;padding-left:0;list-style:none}.product-list li{margin-bottom:6px;padding:8px;background:#f8f9fa;border-radius:4px;font-size:14px;line-height:1.4}.notes-section{margin-top:12px}.notes-section h4{margin:0 0 5px 0;font-size:14px;color:#333}.notes-section p{margin:0;padding:8px;background:#fff3cd;border-left:4px solid #ffc107;border-radius:4px;font-size:14px}.amount{font-family:Arial,sans-serif}@media print{.order-cards-container{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}.order-card{border:1px solid #000;box-shadow:none;margin-bottom:8px}.order-header{background:#f8f9fa}.product-list li{background:#f8f9fa}.notes-section p{background:#fff3cd}.print-btn{display:none}}@page{size:A4;margin:1cm}body{background-color:white;padding:0;-webkit-print-color-adjust:exact}.container{width:100%;max-width:none;box-shadow:none;padding:0;margin:0}.order-card{page-break-inside:avoid}h2{margin-top:20px}' +
       styleEnd + headEnd + bodyTag +
-      '<' + 'button class="print-btn" onclick="window.print()">🖨️ 打印此页面 / 另存为PDF<' + '/button>' +
+      '<' + 'button class="print-btn" onclick="window.print()">打印此页面 / 另存为PDF<' + '/button>' +
       '<' + 'div class="container">' +
         '<' + 'h1>' + dateStr + ' 生产明细<' + '/h1>' +
         '<' + 'div class="summary-info">' +
@@ -476,21 +565,9 @@ const openPrintPreview = (printData, dateStr, dateIso) => {
           '<' + '/tbody>' +
         '<' + '/table>' +
         '<' + 'h2>📋 用户订单明细<' + '/h2>' +
-        '<' + 'table>' +
-          '<' + 'thead>' +
-            '<' + 'tr>' +
-              '<' + 'th style="width: 12%;">客户<' + '/th>' +
-              '<' + 'th style="width: 12%;">联系电话<' + '/th>' +
-              '<' + 'th style="width: 40%;">商品信息<' + '/th>' +
-              '<' + 'th style="width: 13%;">金额<' + '/th>' +
-              '<' + 'th style="width: 8%;">结清状态<' + '/th>' +
-              '<' + 'th style="width: 15%;">备注信息<' + '/th>' +
-            '<' + '/tr>' +
-          '<' + '/thead>' +
-          '<' + 'tbody>' +
+        '<' + 'div class="order-cards-container">' +
             orderDetailsRows +
-          '<' + '/tbody>' +
-        '<' + '/table>' +
+        '<' + '/div>' +
         '<' + 'div style="margin-top: 20px; text-align: right; font-size: 14px; color: #666;">' +
           '打印时间: ' + new Date().toLocaleString() +
         '<' + '/div>' +
@@ -506,10 +583,9 @@ const openPrintPreview = (printData, dateStr, dateIso) => {
   printWindow.document.write(printContent)
   printWindow.document.close()
 
-  // 等待页面加载完成后再显示打印对话框
+  // 等待页面加载完成
   printWindow.onload = function() {
-    // 可以选择是否自动显示打印对话框
-    // printWindow.print()
+    // 不再自动显示打印对话框，让用户手动点击打印按钮
   }
 }
 
