@@ -1306,6 +1306,7 @@ const submitOrder = async () => {
         price: item.price,
         quantity: item.quantity,
         category: item.category,
+        subcategory: item.subcategory,
         productCategory: item.productCategory
       })),
       totalPrice: totalPrice.value,
