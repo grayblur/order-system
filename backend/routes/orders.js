@@ -43,6 +43,7 @@ router.get('/', async (req, res) => {
       const items = await database.all(
         `SELECT
           category,
+          subcategory,
           product_category,
           product_name,
           quantity,

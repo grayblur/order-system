@@ -3,6 +3,11 @@ const cors = require('cors');
 const helmet = require('helmet');
 const morgan = require('morgan');
 const bodyParser = require('body-parser');
+const cron = require('node-cron');
+const axios = require('axios');
+const { exec } = require('child_process');
+const util = require('util');
+const execPromise = util.promisify(exec);
 require('dotenv').config();
 
 // 导入数据库和路由
@@ -10,6 +15,48 @@ const database = require('./models/database');
 const orderRoutes = require('./routes/orders');
 const goodsRoutes = require('./routes/goods');
 const quickInputRoutes = require('./routes/quickInputs');
+
+// 全局变量存储默认打印机
+let defaultPrinter = null;
+let lastPrinterCheck = null;
+
+// 获取系统默认打印机
+async function getDefaultPrinter() {
+  try {
+    // 如果环境变量设置了打印机，直接使用
+    if (process.env.DEFAULT_PRINTER) {
+      return process.env.DEFAULT_PRINTER;
+    }
+
+    // 缓存5分钟内有效
+    const now = Date.now();
+    if (defaultPrinter && lastPrinterCheck && (now - lastPrinterCheck) < 5 * 60 * 1000) {
+      return defaultPrinter;
+    }
+
+    // 执行lpstat命令获取打印机列表
+    const { stdout } = await execPromise('lpstat -p');
+    const lines = stdout.split('\n');
+
+    // 解析打印机名称
+    for (const line of lines) {
+      const match = line.match(/printer (.+?) is/);
+      if (match) {
+        defaultPrinter = match[1];
+        lastPrinterCheck = now;
+        console.log(`🖨️ 检测到默认打印机: ${defaultPrinter}`);
+        return defaultPrinter;
+      }
+    }
+
+    // 如果没有找到打印机，返回null
+    console.warn('⚠️  未检测到可用打印机');
+    return null;
+  } catch (error) {
+    console.error('❌ 获取打印机列表失败:', error.message);
+    return null;
+  }
+}
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -84,7 +131,10 @@ app.get('/api', (req, res) => {
         get: 'GET /api/orders/:id',
         update: 'PUT /api/orders/:id',
         delete: 'DELETE /api/orders/:id',
-        production: 'GET /api/orders/production/:date'
+        production: 'GET /api/orders/production/:date',
+        printers: 'GET /api/orders/printers',
+        printProduction: 'POST /api/orders/print-production-list',
+        printToPrinter: 'POST /api/orders/print-to-printer'
       },
       goods: {
         tree: 'GET /api/goods',
@@ -154,6 +204,10 @@ async function startServer() {
       console.log('- POST /api/orders      - 创建新订单');
       console.log('- GET  /api/goods       - 获取商品目录');
       console.log('');
+
+      // 设置定时任务：每天下午5点检查一周后的订单并打印
+      setupScheduledTasks();
+
       console.log('按 Ctrl+C 停止服务器');
     });
 
@@ -194,6 +248,90 @@ process.on('SIGTERM', async () => {
     process.exit(1);
   }
 });
+
+// 设置定时任务
+function setupScheduledTasks() {
+  try {
+    // 每天下午5点执行定时任务
+    cron.schedule('0 17 * * *', async () => {
+      console.log('🕒 开始执行定时任务：检查一周后的订单...');
+      try {
+        // 计算一周后的日期
+        const today = new Date();
+        const nextWeek = new Date(today);
+        nextWeek.setDate(today.getDate() + 7);
+        const targetDate = nextWeek.toISOString().split('T')[0];
+
+        console.log(`📅 检查日期: ${targetDate}`);
+
+        // 调用原来的生产单接口获取一周后的订单
+        const response = await axios.get(`http://localhost:${PORT}/api/orders/production/${targetDate}`);
+
+        if (response.data.success && response.data.total_orders > 0) {
+          console.log(`📋 找到 ${response.data.total_orders} 个一周后的订单，开始打印...`);
+
+          // 获取默认打印机
+          const printerName = await getDefaultPrinter();
+          if (!printerName) {
+            console.error('❌ 无法获取默认打印机，跳过打印');
+            return;
+          }
+
+          // 尝试打印
+          let printSuccess = false;
+          let retryCount = 0;
+          const maxRetries = 2;
+
+          while (!printSuccess && retryCount < maxRetries) {
+            try {
+              console.log(`🖨️ 尝试打印到: ${printerName} (第${retryCount + 1}次)`);
+
+              const printResponse = await axios.post(`http://localhost:${PORT}/api/orders/print-production-list`, {
+                printerName: printerName,
+                date: targetDate
+              });
+
+              if (printResponse.data.success) {
+                console.log(`✅ 定时打印任务完成：已打印 ${response.data.total_orders} 个订单 (${targetDate})`);
+                printSuccess = true;
+              } else {
+                throw new Error(printResponse.data.error || '打印接口返回失败');
+              }
+            } catch (printError) {
+              retryCount++;
+              console.error(`❌ 打印失败 (第${retryCount}次):`, printError.message);
+
+              if (retryCount < maxRetries) {
+                // 清空缓存，重新获取打印机
+                console.log('🔄 清空打印机缓存，重新检测打印机...');
+                defaultPrinter = null;
+                lastPrinterCheck = null;
+
+                // 等待1秒后重试
+                await new Promise(resolve => setTimeout(resolve, 1000));
+              }
+            }
+          }
+
+          if (!printSuccess) {
+            console.error(`❌ 定时打印最终失败，已重试${maxRetries}次`);
+          }
+        } else {
+          console.log(`📭 ${targetDate} 没有订单，跳过打印`);
+        }
+      } catch (error) {
+        console.error('❌ 定时任务执行失败:', error.message);
+      }
+    }, {
+      timezone: 'Asia/Shanghai'
+    });
+
+    console.log('⏰ 定时任务已设置：每天下午5:00检查一周后的订单并自动打印');
+  } catch (error) {
+    console.error('❌ 设置定时任务失败:', error.message);
+  }
+}
+
 
 // 启动服务
 startServer();

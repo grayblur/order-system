@@ -21,26 +21,50 @@ const DB_PATH = process.env.NODE_ENV === 'production'
   ? process.env.DB_PATH
   : './database.db';
 
-// 确保必要的目录存在（仅在需要时）
+// 确保必要的目录存在（仅在需要时，增强版错误处理）
 const ensureDirectoryExists = (dirPath) => {
   if (process.env.NODE_ENV === 'production') {
-    if (!fs.existsSync(dirPath)) {
-      fs.mkdirSync(dirPath, { recursive: true, mode: 0o755 });
+    try {
+      if (!fs.existsSync(dirPath)) {
+        fs.mkdirSync(dirPath, { recursive: true, mode: 0o755 });
+        console.log(`✅ 目录创建成功: ${dirPath}`);
+      } else {
+        console.log(`✅ 目录已存在: ${dirPath}`);
+      }
+    } catch (error) {
+      console.error(`❌ 无法创建目录: ${dirPath}`);
+      console.error(`   错误信息: ${error.message}`);
+      console.error(`   当前用户: ${process.getuid ? process.getuid() : 'unknown'}`);
+      console.warn(`⚠️  目录创建失败，但测试将继续运行...`);
     }
   }
 };
 
-// 确保目录存在
-if (process.env.NODE_ENV === 'production') {
+// 只在开发环境或测试环境创建目录，生产环境由 systemd 负责创建
+if (process.env.NODE_ENV !== 'production') {
   ensureDirectoryExists(path.dirname(DB_PATH));
-  ensureDirectoryExists(path.dirname(process.env.LOG_FILE));
-  ensureDirectoryExists(process.env.BACKUP_PATH);
+  if (process.env.LOG_FILE) {
+    ensureDirectoryExists(path.dirname(process.env.LOG_FILE));
+  }
+  if (process.env.BACKUP_PATH) {
+    ensureDirectoryExists(process.env.BACKUP_PATH);
+  }
 }
 
-// 生产日志配置
+// 日志配置（简化版）
 let logStream;
 if (process.env.NODE_ENV === 'production') {
-  logStream = fs.createWriteStream(process.env.LOG_FILE, { flags: 'a' });
+  // 生产环境假设目录已由 systemd 创建
+  try {
+    logStream = fs.createWriteStream(process.env.LOG_FILE, { flags: 'a' });
+    console.log(`✅ 日志流创建成功: ${process.env.LOG_FILE}`);
+  } catch (error) {
+    console.warn(`⚠️  无法创建日志流，将使用控制台输出: ${error.message}`);
+    logStream = {
+      write: (data) => console.log(`[APP LOG] ${data.toString().trim()}`),
+      end: () => console.log('[APP LOG] 日志流结束')
+    };
+  }
 }
 
 // 中间件配置

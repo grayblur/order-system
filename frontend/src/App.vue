@@ -288,7 +288,7 @@
           <div v-else class="summary-list">
             <div v-for="item in selectedItems" :key="item.id" class="summary-item">
               <div class="item-info">
-                <div class="item-name">{{ item.category }}-{{ item.productCategory }}-{{ item.label }}</div>
+                <div class="item-name">{{ item.category }}{{ item.subcategory ? '-' + item.subcategory : '' }}{{ item.productCategory ? '-' + item.productCategory : '' }}{{ item.label ? '-' + item.label : '' }}</div>
                 <div class="item-calc text-secondary">
                   ¥{{ item.price }} × {{ item.quantity }}
                 </div>
@@ -371,7 +371,7 @@
             <el-table-column prop="items" label="订购商品" min-width="200">
               <template #default="scope">
                 <div v-for="item in scope.row.items" :key="item.id" class="order-item">
-                  {{ item.category }}-{{ item.productCategory }}, {{ item.label }} x{{ item.quantity }} (¥{{ item.price * item.quantity }})
+                  {{ item.category }}{{ item.subcategory ? '-' + item.subcategory : '' }}{{ item.productCategory ? '-' + item.productCategory : '' }}, {{ item.label }} x{{ item.quantity }} (¥{{ item.price * item.quantity }})
                 </div>
               </template>
             </el-table-column>
@@ -813,6 +813,7 @@ const loadOrders = async (page = 1) => {
         items: order.items ? order.items.map(item => ({
           id: item.id,
           category: item.category,
+          subcategory: item.subcategory || getSubcategoryFromProductCategory(item.product_category, item.category),
           productCategory: item.product_category,
           label: item.product_name,
           quantity: item.quantity,
@@ -1629,6 +1630,33 @@ const deleteNotesQuickInput = async (id) => {
       console.error('删除备注快捷输入失败:', error)
       ElMessage.error('删除备注快捷输入失败')
     }
+  }
+}
+
+// 根据商品分类推断二级分类
+const getSubcategoryFromProductCategory = (productCategory, category) => {
+  if (!productCategory || !category) return ''
+
+  // 根据商品分类推断二级分类
+  if (category === '花馍' || category === '枣糕') {
+    if (productCategory === '上头糕' || productCategory === '剃头糕' ||
+        productCategory === '上头馍' || productCategory === '馄饨馍' ||
+        productCategory === '双石榴') {
+      return '结婚'
+    } else if (productCategory === '小花' || productCategory === '大花' ||
+               productCategory === '馄饨花馍' || productCategory === '大龙凤' ||
+               productCategory === '滚路糕') {
+      return '订婚'
+    } else if (productCategory === '12岁小花' || productCategory === '12岁大花' ||
+               productCategory === '1岁小花小圈' || productCategory === '1岁小花') {
+      return '生日'
+    } else {
+      return '其他'
+    }
+  } else if (category === '果蔬') {
+    return '其他'
+  } else {
+    return '其他'
   }
 }
 

@@ -235,7 +235,7 @@ const printCommand = {
       if (categoryGroup.name !== '其他') {
         productSummaryRows.push(`
           <tr>
-            <td colspan="3" style="text-align: center; font-weight: bold; font-size: 18px; background-color: #f0f0f0; padding: 8px;">
+            <td colspan="3" style="text-align: center; font-weight: bold; font-size: 27px; background-color: #f0f0f0; padding: 8px; color: #000;">
               🌺 ${categoryGroup.name} 🌺
             </td>
           </tr>
@@ -263,13 +263,13 @@ const printCommand = {
           if (index === 0) {
             productSummaryRows.push(`
               <tr>
-                <td style="text-align: center; font-weight: bold; vertical-align: middle;" rowspan="${productCategories.length}">
+                <td style="text-align: center; font-weight: bold; vertical-align: middle; background-color: #f9f9f9; color: #000; font-size: 27px;" rowspan="${productCategories.length}">
                   ${subcategoryGroup.subcategory}
                 </td>
-                <td style="padding-left: 10px;">
+                <td style="padding-left: 10px; color: #000; font-size: 27px;">
                   <strong>${productCategoryData.name}:</strong> ${productsList}
                 </td>
-                <td style="text-align: center; font-weight: bold; font-size: 20px; vertical-align: middle;" rowspan="${productCategories.length}">
+                <td style="text-align: center; font-weight: bold; font-size: 29px; vertical-align: middle; background-color: #f9f9f9; color: #000;" rowspan="${productCategories.length}">
                   ${subcategoryTotalQuantity} 个
                 </td>
               </tr>
@@ -277,7 +277,7 @@ const printCommand = {
           } else {
             productSummaryRows.push(`
               <tr>
-                <td style="padding-left: 10px;">
+                <td style="padding-left: 10px; color: #000; font-size: 27px;">
                   <strong>${productCategoryData.name}:</strong> ${productsList}
                 </td>
               </tr>
@@ -305,8 +305,8 @@ const printCommand = {
         const paidAmount = customerInfo.paid_amount || 0
         const isSettled = paidAmount >= totalAmount
         const settlementStatus = isSettled
-          ? '<span style="font-size: 24px; font-weight: bold;">✓</span>'
-          : '<span style="font-size: 24px; font-weight: bold;">⭕</span>'
+          ? '<span style="font-size: 28px; font-weight: bold; color: #000;">付清</span>'
+          : '<span style="font-size: 28px; font-weight: bold; color: #000;">未付清</span>'
 
         return `
           <div class="order-card">
@@ -346,15 +346,15 @@ const printCommand = {
         <style>
           @page {
             size: A4;
-            margin: 1cm;
+            margin: 0;
           }
 
           body {
             font-family: "Microsoft YaHei", "SimSun", sans-serif;
             margin: 0;
-            padding: 20px;
+            padding: 10px;
             color: #000;
-            font-size: 24px;
+            font-size: 23px;
             -webkit-print-color-adjust: exact;
           }
 
@@ -364,21 +364,22 @@ const printCommand = {
             background: white;
             padding: 0;
             margin: 0;
+            box-sizing: border-box;
           }
 
           h1 {
             text-align: center;
-            font-size: 34px;
-            margin-bottom: 20px;
+            font-size: 33px;
+            margin-bottom: 15px;
             border-bottom: 2px solid #000;
-            padding-bottom: 10px;
+            padding-bottom: 8px;
             color: #000;
           }
 
           h2 {
-            font-size: 28px;
-            margin-top: 30px;
-            margin-bottom: 10px;
+            font-size: 31px;
+            margin-top: 20px;
+            margin-bottom: 8px;
             border-left: 5px solid #000;
             padding-left: 10px;
             color: #000;
@@ -386,27 +387,27 @@ const printCommand = {
 
           .summary-info {
             background-color: #f8f9fa;
-            padding: 15px;
-            border-radius: 6px;
-            margin-bottom: 20px;
+            padding: 12px;
+            border-radius: 4px;
+            margin-bottom: 15px;
             display: flex;
             justify-content: space-between;
             align-items: center;
-            font-size: 24px;
+            font-size: 25px;
             color: #000;
           }
 
           table {
             width: 100%;
             border-collapse: collapse;
-            margin-bottom: 10px;
-            font-size: 24px;
+            margin-bottom: 8px;
+            font-size: 27px;
             color: #000;
           }
 
           th, td {
             border: 1px solid #000;
-            padding: 8px;
+            padding: 6px;
             text-align: left;
             vertical-align: top;
             color: #000;
@@ -418,23 +419,9 @@ const printCommand = {
             text-align: center;
           }
 
-          .product-list {
-            margin: 0;
-            padding-left: 0;
-            list-style: none;
-          }
-
-          .product-list li {
-            margin-bottom: 4px;
-          }
-
           .product-item-name {
             font-weight: bold;
-          }
-
-          .amount {
-            text-align: right;
-            font-family: Arial, sans-serif;
+            color: #000;
           }
 
           tr {
@@ -452,36 +439,54 @@ const printCommand = {
           /* 订单卡片样式 */
           .order-cards-container {
             display: grid;
-            grid-template-columns: repeat(2, 1fr);
-            gap: 8px;
-            margin-top: 20px;
+            grid-template-columns: 1fr 1fr;
+            grid-auto-flow: row;
+            column-gap: 8px;
+            row-gap: 8px;
+            margin-top: 15px;
+            width: 100%;
+            box-sizing: border-box;
           }
 
           .order-card {
-            border: 1px solid #000;
+            border: 1.5px solid #000;
             border-radius: 4px;
             background: #fff;
             page-break-inside: avoid;
-            margin-bottom: 8px;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+            width: 100%;
+            min-width: 0;
+            box-sizing: border-box;
+            overflow: hidden;
           }
 
           .order-header {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            padding: 8px 12px;
+            padding: 8px 10px;
             background: #f8f9fa;
             border-bottom: 1px solid #000;
           }
 
           .customer-info {
             flex: 1;
+            min-width: 0;
+            overflow: hidden;
+          }
+
+          .settlement-status {
+            text-align: right;
+            flex-shrink: 0;
           }
 
           .customer-name {
             margin: 0 0 4px 0;
-            font-size: 16px;
-            color: #333;
+            font-size: 34px;
+            color: #000;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
           }
 
           .contact-details {
@@ -491,8 +496,11 @@ const printCommand = {
           }
 
           .phone, .address {
-            font-size: 12px;
-            color: #666;
+            font-size: 28px;
+            color: #000;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
           }
 
           .order-summary {
@@ -500,25 +508,26 @@ const printCommand = {
           }
 
           .order-summary .amount {
-            font-size: 16px;
+            font-size: 32px;
             font-weight: bold;
-            color: #2c3e50;
+            color: #000;
             margin-bottom: 4px;
+            font-family: Arial, sans-serif;
           }
 
           .order-content {
-            padding: 12px;
+            padding: 10px;
           }
 
           .products-section {
-            margin-bottom: 10px;
+            margin-bottom: 8px;
           }
 
           .products-section h4 {
-            margin: 0 0 6px 0;
-            font-size: 14px;
-            color: #333;
-            border-bottom: 1px solid #eee;
+            margin: 0 0 5px 0;
+            font-size: 30px;
+            color: #000;
+            border-bottom: 1px solid #000;
             padding-bottom: 2px;
           }
 
@@ -530,11 +539,14 @@ const printCommand = {
 
           .product-list li {
             margin-bottom: 4px;
-            padding: 4px 6px;
+            padding: 5px 7px;
             background: #f8f9fa;
-            border-radius: 2px;
-            font-size: 12px;
-            line-height: 1.3;
+            border-radius: 3px;
+            font-size: 28px;
+            line-height: 1.2;
+            color: #000;
+            word-break: break-word;
+            overflow-wrap: break-word;
           }
 
           .notes-section {
@@ -542,18 +554,36 @@ const printCommand = {
           }
 
           .notes-section h4 {
-            margin: 0 0 4px 0;
-            font-size: 12px;
-            color: #333;
+            margin: 0 0 3px 0;
+            font-size: 28px;
+            color: #000;
           }
 
           .notes-section p {
             margin: 0;
-            padding: 6px 8px;
+            padding: 5px 7px;
             background: #fff3cd;
             border-left: 3px solid #ffc107;
-            border-radius: 2px;
-            font-size: 12px;
+            border-radius: 3px;
+            font-size: 28px;
+            color: #000;
+          }
+
+          @media print {
+            body {
+              padding: 5px;
+            }
+
+            .order-cards-container {
+              grid-template-columns: 1fr 1fr !important;
+              column-gap: 6px !important;
+              row-gap: 6px !important;
+            }
+
+            .order-card {
+              break-inside: avoid;
+              page-break-inside: avoid;
+            }
           }
 
           @media screen {
@@ -565,14 +595,14 @@ const printCommand = {
               max-width: 210mm;
               margin: 0 auto;
               background: white;
-              padding: 20px;
+              padding: 15px;
               box-shadow: 0 0 10px rgba(0,0,0,0.1);
             }
 
             .no-print {
               display: block;
               text-align: center;
-              margin-bottom: 20px;
+              margin-bottom: 15px;
             }
           }
         </style>
@@ -605,7 +635,7 @@ const printCommand = {
             ${orderDetailsHtml}
           </div>
 
-          <div style="margin-top: 20px; text-align: right; font-size: 20px; color: #000;">
+          <div style="margin-top: 20px; text-align: right; font-size: 14px; color: #000;">
             打印时间: ${new Date().toLocaleString()}
           </div>
         </div>

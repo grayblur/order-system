@@ -88,7 +88,7 @@ const loadOrdersForDate = async (date) => {
         },
         items: order.items.map((item, itemIndex) => ({
           id: itemIndex + 1,
-          name: `${item.product_category || ''}-${item.name || ''}`,
+          name: `${item.category || ''}${item.subcategory ? '-' + item.subcategory : ''}${item.product_category ? '-' + item.product_category : ''}${item.name ? '-' + item.name : ''}`,
           price: item.unit_price,
           quantity: item.quantity
         })),

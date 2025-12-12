@@ -22,10 +22,41 @@ const quickInputRoutes = require('./routes/quickInputs');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// 确保必要的目录存在
+// 确保必要的目录存在（增强版，包含权限检查）
 const ensureDirectoryExists = (dirPath) => {
-  if (!fs.existsSync(dirPath)) {
-    fs.mkdirSync(dirPath, { recursive: true, mode: 0o755 });
+  try {
+    if (!fs.existsSync(dirPath)) {
+      fs.mkdirSync(dirPath, { recursive: true, mode: 0o755 });
+      console.log(`✅ 目录创建成功: ${dirPath}`);
+    } else {
+      console.log(`✅ 目录已存在: ${dirPath}`);
+    }
+  } catch (error) {
+    console.error(`❌ 无法创建目录: ${dirPath}`);
+    console.error(`   错误信息: ${error.message}`);
+    console.error(`   当前用户: ${process.getuid ? process.getuid() : 'unknown'}`);
+    console.error(`   用户名: ${require('os').userInfo().username}`);
+
+    // 检查父目录权限
+    const parentDir = require('path').dirname(dirPath);
+    try {
+      const stats = fs.statSync(parentDir);
+      console.error(`   父目录权限: ${stats.mode.toString(8)}`);
+      console.error(`   父目录所有者: UID ${stats.uid}, GID ${stats.gid}`);
+    } catch (parentError) {
+      console.error(`   无法获取父目录信息: ${parentError.message}`);
+    }
+
+    // 在生产环境中，如果是权限问题，建议使用部署脚本创建目录
+    if (process.env.NODE_ENV === 'production') {
+      console.error(`   建议解决方案:`);
+      console.error(`   1. 确保已运行部署脚本: sudo ./deploy.sh`);
+      console.error(`   2. 手动创建目录: sudo mkdir -p ${dirPath}`);
+      console.error(`   3. 设置正确权限: sudo chown -R order-system:order-system ${dirPath}`);
+    }
+
+    // 不要抛出错误，让服务继续运行，但记录问题
+    console.warn(`⚠️  目录创建失败，但服务将继续运行...`);
   }
 };
 
@@ -36,12 +67,35 @@ const dbPath = isDev ? './database.db' : (process.env.DB_PATH || './database.db'
 const logFile = isDev ? './logs/app.log' : (process.env.LOG_FILE || './logs/app.log');
 const backupPath = isDev ? './backups' : (process.env.BACKUP_PATH || './backups');
 
-ensureDirectoryExists(path.dirname(dbPath));
-ensureDirectoryExists(path.dirname(logFile));
-ensureDirectoryExists(backupPath);
+// 只在开发环境中创建目录，生产环境由 systemd 负责创建
+if (isDev) {
+  ensureDirectoryExists(path.dirname(dbPath));
+  ensureDirectoryExists(path.dirname(logFile));
+  ensureDirectoryExists(backupPath);
+}
 
-// 生产日志配置
-const logStream = fs.createWriteStream(logFile, { flags: 'a' });
+// 日志配置（简化版）
+let logStream;
+try {
+  // 在开发环境中，检查目录是否存在
+  if (isDev && !fs.existsSync(path.dirname(logFile))) {
+    console.warn(`⚠️  开发环境日志目录不存在，将使用控制台输出: ${path.dirname(logFile)}`);
+    logStream = {
+      write: (data) => console.log(`[APP LOG] ${data.toString().trim()}`),
+      end: () => console.log('[APP LOG] 日志流结束')
+    };
+  } else {
+    // 生产环境假设目录已由 systemd 创建，开发环境目录也存在
+    logStream = fs.createWriteStream(logFile, { flags: 'a' });
+    console.log(`✅ 日志流创建成功: ${logFile}`);
+  }
+} catch (error) {
+  console.warn(`⚠️  无法创建日志流，将使用控制台输出: ${error.message}`);
+  logStream = {
+    write: (data) => console.log(`[APP LOG] ${data.toString().trim()}`),
+    end: () => console.log('[APP LOG] 日志流结束')
+  };
+}
 
 // 中间件配置
 app.use(helmet({

@@ -22,6 +22,32 @@ if [ "$EUID" -ne 0 ]; then
     exit 1
 fi
 
+# 权限检查函数
+check_directory_permissions() {
+    local dir_path="$1"
+    local dir_name="$2"
+
+    echo "🔍 检查 $dir_name 目录权限..."
+
+    # 检查父目录是否存在和可写
+    local parent_dir=$(dirname "$dir_path")
+
+    if [ ! -d "$parent_dir" ]; then
+        echo "❌ 父目录不存在: $parent_dir"
+        return 1
+    fi
+
+    if [ ! -w "$parent_dir" ]; then
+        echo "⚠️  父目录不可写: $parent_dir"
+        echo "   当前用户: $(whoami)"
+        echo "   父目录权限: $(ls -ld "$parent_dir")"
+        return 1
+    fi
+
+    echo "✅ $dir_name 目录权限检查通过"
+    return 0
+}
+
 # 检查系统架构
 ARCH=$(uname -m)
 echo "🔍 检测到系统架构: $ARCH"
@@ -76,20 +102,68 @@ fi
 
 # 创建目录结构
 echo "📁 创建目录结构..."
+
+# 检查并创建各个目录
+if ! check_directory_permissions "$APP_DIR" "应用"; then
+    echo "❌ 无法创建应用目录"
+    exit 1
+fi
 mkdir -p "$APP_DIR"
+
+if ! check_directory_permissions "$DATA_DIR" "数据"; then
+    echo "❌ 无法创建数据目录"
+    exit 1
+fi
 mkdir -p "$DATA_DIR"
-mkdir -p "$LOG_DIR"
+
+# 特殊处理 /var/log 目录 - 确保有正确的权限
+if [ ! -d "$LOG_DIR" ]; then
+    echo "📝 创建日志目录: $LOG_DIR"
+
+    # 检查父目录权限
+    if check_directory_permissions "$LOG_DIR" "日志"; then
+        mkdir -p "$LOG_DIR"
+        echo "✅ 日志目录创建成功"
+    else
+        echo "⚠️  权限检查失败，尝试使用 sudo 创建..."
+        sudo mkdir -p "$LOG_DIR"
+        if [ $? -eq 0 ]; then
+            echo "✅ 使用 sudo 创建日志目录成功"
+        else
+            echo "❌ 无法创建日志目录，请手动检查权限"
+            exit 1
+        fi
+    fi
+else
+    echo "✅ 日志目录已存在: $LOG_DIR"
+fi
+
+if ! check_directory_permissions "$BACKUP_DIR" "备份"; then
+    echo "❌ 无法创建备份目录"
+    exit 1
+fi
 mkdir -p "$BACKUP_DIR"
+
 mkdir -p "/etc/$APP_NAME"
 
 # 设置目录权限
+echo "🔐 设置目录权限..."
 chown -R "$APP_USER:$APP_USER" "$APP_DIR"
 chown -R "$APP_USER:$APP_USER" "$DATA_DIR"
-chown -R "$APP_USER:$APP_USER" "$LOG_DIR"
+
+# 特殊处理日志目录权限
+if [ -d "$LOG_DIR" ]; then
+    chown -R "$APP_USER:$APP_USER" "$LOG_DIR"
+    chmod 755 "$LOG_DIR"
+    echo "✅ 日志目录权限设置完成"
+else
+    echo "❌ 日志目录创建失败"
+    exit 1
+fi
+
 chown -R "$APP_USER:$APP_USER" "$BACKUP_DIR"
 chmod 755 "$APP_DIR"
 chmod 755 "$DATA_DIR"
-chmod 755 "$LOG_DIR"
 chmod 755 "$BACKUP_DIR"
 
 # 复制应用文件
@@ -214,12 +288,22 @@ SyslogIdentifier=$SERVICE_NAME
 Environment=NODE_ENV=production
 EnvironmentFile=$APP_DIR/.env
 
+# 启动前创建必要目录（解决重启后目录被删除的问题）
+# 使用 + 前缀以 root 权限执行，解决权限问题
+ExecStartPre=+/bin/mkdir -p $DATA_DIR
+ExecStartPre=+/bin/mkdir -p $LOG_DIR
+ExecStartPre=+/bin/mkdir -p $BACKUP_DIR
+ExecStartPre=+/bin/chown -R $APP_USER:$APP_USER $DATA_DIR
+ExecStartPre=+/bin/chown -R $APP_USER:$APP_USER $LOG_DIR
+ExecStartPre=+/bin/chown -R $APP_USER:$APP_USER $BACKUP_DIR
+ExecStartPre=+/bin/chmod 755 $LOG_DIR
+
 # 安全设置
-NoNewPrivileges=true
-PrivateTmp=true
-ProtectSystem=strict
-ProtectHome=true
-ReadWritePaths=$DATA_DIR $LOG_DIR $BACKUP_DIR
+#NoNewPrivileges=true
+#PrivateTmp=true
+#ProtectSystem=strict
+#ProtectHome=true
+#ReadWritePaths=$DATA_DIR $LOG_DIR $BACKUP_DIR
 
 # 资源限制（ARM 优化）
 LimitNOFILE=65535
