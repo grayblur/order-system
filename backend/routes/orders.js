@@ -330,10 +330,13 @@ router.post('/print-production-list', async (req, res) => {
     if (printResult.success) {
       // 记录打印操作
       try {
+        // 获取所有订单ID
+        const orderIds = orders.map(order => order.id).join(',');
+
         await database.run(`
-          INSERT INTO print_history (print_date, print_type, order_count, notes)
-          VALUES (?, ?, ?, ?)
-        `, [date, 'production_list', printArray.length, `使用打印机: ${printerName}`]);
+          INSERT INTO print_records (print_date, print_type, status, order_count, notes, order_ids)
+          VALUES (?, 'production_list', 'success', ?, ?, ?)
+        `, [date, printArray.length, `使用打印机: ${printerName}`, orderIds]);
       } catch (logError) {
         console.error('记录打印历史失败:', logError);
       }
@@ -408,11 +411,18 @@ router.post('/print-to-printer', async (req, res) => {
 
           const orderCount = orderCountResult.count || 0;
 
+          // 获取该日期的所有订单ID
+          const ordersData = await database.all(`
+            SELECT id FROM orders WHERE delivery_date = ?
+          `, [print_date]);
+
+          const orderIds = ordersData.map(order => order.id).join(',');
+
           // 记录打印操作
           await database.run(`
-            INSERT INTO print_records (print_date, print_type, status, order_count, notes)
-            VALUES (?, ?, 'success', ?, ?)
-          `, [print_date, print_type, orderCount, `打印到: ${printerName}`]);
+            INSERT INTO print_records (print_date, print_type, status, order_count, notes, order_ids)
+            VALUES (?, ?, 'success', ?, ?, ?)
+          `, [print_date, print_type, orderCount, `打印到: ${printerName}`, orderIds]);
         } catch (dbError) {
           console.error('记录打印操作失败:', dbError);
         }
@@ -485,6 +495,102 @@ router.get('/:id', async (req, res) => {
   }
 });
 
+// 检查七天内订单的打印状态
+router.get('/check-print-status/:delivery_date', async (req, res) => {
+  try {
+    const deliveryDate = req.params.delivery_date;
+
+    // 验证日期格式
+    if (!deliveryDate || !/^\d{4}-\d{2}-\d{2}$/.test(deliveryDate)) {
+      return res.status(400).json({
+        success: false,
+        error: '日期格式无效，请使用 YYYY-MM-DD 格式'
+      });
+    }
+
+    // 检查是否为七天内的日期
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const targetDate = new Date(deliveryDate + 'T00:00:00');
+    targetDate.setHours(0, 0, 0, 0);
+
+    // 计算日期差
+    const daysDiff = Math.ceil((targetDate - today) / (1000 * 60 * 60 * 24));
+
+    if (daysDiff < 0 || daysDiff > 7) {
+      return res.json({
+        success: true,
+        is_within_seven_days: false,
+        message: '日期不在七天内，无需检查打印状态'
+      });
+    }
+
+    // 检查该日期是否有打印记录
+    const printRecord = await database.get(`
+      SELECT * FROM print_records
+      WHERE print_date = ? AND print_type = 'production_list' AND status = 'success'
+      ORDER BY printed_at DESC
+      LIMIT 1
+    `, [deliveryDate]);
+
+    if (printRecord) {
+      // 获取该日期的所有订单
+      const orders = await database.all(`
+        SELECT id, customer_name, created_at FROM orders
+        WHERE delivery_date = ?
+        ORDER BY created_at DESC
+      `, [deliveryDate]);
+
+      // 如果有订单ID记录，检查是否有新增订单
+      let hasNewOrders = false;
+      if (printRecord.order_ids) {
+        const printedOrderIds = printRecord.order_ids.split(',').map(id => parseInt(id.trim()));
+        hasNewOrders = orders.some(order => !printedOrderIds.includes(order.id));
+      } else {
+        // 如果没有记录订单ID，假设打印后可能新增了订单
+        const printTime = new Date(printRecord.printed_at);
+        hasNewOrders = orders.some(order => new Date(order.created_at) > printTime);
+      }
+
+      res.json({
+        success: true,
+        is_within_seven_days: true,
+        has_print_record: true,
+        has_new_orders: hasNewOrders,
+        print_record: {
+          printed_at: printRecord.printed_at,
+          order_count: printRecord.order_count,
+          notes: printRecord.notes
+        },
+        current_order_count: orders.length,
+        message: hasNewOrders ?
+          '该日期已打印过，但有新增订单，建议添加到原订单或重新打印' :
+          '该日期已打印过，没有新增订单'
+      });
+    } else {
+      // 检查该日期是否有订单
+      const orderCount = await database.get(`
+        SELECT COUNT(*) as count FROM orders WHERE delivery_date = ?
+      `, [deliveryDate]);
+
+      res.json({
+        success: true,
+        is_within_seven_days: true,
+        has_print_record: false,
+        current_order_count: orderCount.count,
+        message: '该日期没有打印记录'
+      });
+    }
+  } catch (error) {
+    console.error('检查打印状态失败:', error);
+    res.status(500).json({
+      success: false,
+      error: '检查打印状态失败',
+      message: error.message
+    });
+  }
+});
+
 // 创建新订单
 router.post('/', async (req, res) => {
   try {
@@ -518,6 +624,28 @@ router.post('/', async (req, res) => {
         error: '制作日期不能早于今天',
         details: `选择的日期: ${delivery_date}, 今天: ${today.toISOString().split('T')[0]}`
       });
+    }
+
+    // 检查是否为七天内的日期
+    const daysDiff = Math.ceil((deliveryDate - today) / (1000 * 60 * 60 * 24));
+    let printStatusWarning = null;
+
+    if (daysDiff >= 0 && daysDiff <= 7) {
+      // 检查该日期是否有打印记录
+      const printRecord = await database.get(`
+        SELECT * FROM print_records
+        WHERE print_date = ? AND print_type = 'production_list' AND status = 'success'
+        ORDER BY printed_at DESC
+        LIMIT 1
+      `, [delivery_date]);
+
+      if (printRecord) {
+        printStatusWarning = {
+          has_print_record: true,
+          printed_at: printRecord.printed_at,
+          message: `该日期的生产清单已于 ${new Date(printRecord.printed_at).toLocaleString('zh-CN')} 打印过，新订单将添加到现有订单中`
+        };
+      }
     }
 
     // 开始事务
@@ -584,7 +712,8 @@ router.post('/', async (req, res) => {
       message: '订单创建成功',
       data: {
         id: orderId,
-        total_amount
+        total_amount,
+        print_status_warning: printStatusWarning
       }
     });
   } catch (error) {

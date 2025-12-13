@@ -1316,7 +1316,7 @@ const submitOrder = async () => {
       orderTime: new Date().toISOString()
     }
 
-    // 调用API提交订单
+    // 调用API提交订单（不等待打印状态检查）
     console.log('提交订单数据:', orderData)
 
     try {
@@ -1353,6 +1353,9 @@ const submitOrder = async () => {
       // 重置表单
       resetForm()
 
+      // 异步检查打印状态（不阻塞订单提交）
+      checkPrintStatusAsync(orderData.deliveryDate)
+
     } catch (apiError) {
       console.error('API调用错误:', apiError)
       ElMessage.error(apiError.message || '订单提交失败，请重试')
@@ -1366,6 +1369,48 @@ const submitOrder = async () => {
       ElMessage.error('订单提交失败，请重试')
       console.error('提交订单错误:', error)
     }
+  }
+}
+
+// 异步检查打印状态的函数
+const checkPrintStatusAsync = async (deliveryDate) => {
+  try {
+    console.log('异步检查打印状态，日期:', deliveryDate)
+
+    const checkResponse = await fetch(`/api/orders/check-print-status/${deliveryDate}`)
+    const checkResult = await checkResponse.json()
+
+    console.log('打印状态检查结果:', checkResult)
+
+    if (checkResult.success && checkResult.is_within_seven_days) {
+      let message = ''
+
+      if (checkResult.has_print_record) {
+        // 有打印记录，提示在纸上添加
+        const printTime = new Date(checkResult.print_record.printed_at).toLocaleString('zh-CN')
+        message = `该日期的生产清单已于 ${printTime} 打印过。\n\n请在打印的纸上添加新增订单。`
+
+        ElMessage.info({
+          message: message,
+          duration: 8000, // 8秒后自动关闭
+          showClose: true,
+          offset: 80 // 稍微向下偏移，避免和成功消息重叠
+        })
+      } else {
+        // 没有打印记录，提示需要打印
+        message = `该日期的生产清单尚未打印。\n\n请记得打印当天订单。`
+
+        ElMessage.warning({
+          message: message,
+          duration: 8000, // 8秒后自动关闭
+          showClose: true,
+          offset: 80 // 稍微向下偏移，避免和成功消息重叠
+        })
+      }
+    }
+  } catch (checkError) {
+    console.error('异步检查打印状态失败:', checkError)
+    // 打印状态检查失败不影响订单，只记录错误
   }
 }
 

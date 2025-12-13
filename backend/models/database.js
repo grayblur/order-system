@@ -102,9 +102,22 @@ class DatabaseManager {
           status TEXT NOT NULL DEFAULT 'success',
           order_count INTEGER DEFAULT 0,
           printed_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-          notes TEXT
+          notes TEXT,
+          order_ids TEXT -- 存储打印的订单ID列表，逗号分隔
         )
       `);
+
+      // 检查并添加 order_ids 字段（如果不存在）
+      try {
+        const columns = this.all(`PRAGMA table_info(print_records)`);
+        const hasOrderIds = columns.some(col => col.name === 'order_ids');
+        if (!hasOrderIds) {
+          this.run(`ALTER TABLE print_records ADD COLUMN order_ids TEXT`);
+          console.log('✅ 已添加 order_ids 字段到 print_records 表');
+        }
+      } catch (error) {
+        console.log('检查/添加 order_ids 字段时出错:', error.message);
+      }
 
       // 创建快捷输入表
       this.run(`

@@ -54,19 +54,19 @@ mkdir -p "$LOG_DIR" "$TEMP_DIR"
 
 # 日志函数
 log() {
-    echo -e "${GREEN}[$(date '+%Y-%m-%d %H:%M:%S')]${NC} $1" | tee -a "$LOG_FILE"
+    echo -e "${GREEN}[$(date '+%Y-%m-%d %H:%M:%S')]${NC} $1" | tee -a "$LOG_FILE" >&2
 }
 
 error() {
-    echo -e "${RED}[$(date '+%Y-%m-%d %H:%M:%S')] ERROR:${NC} $1" | tee -a "$LOG_FILE"
+    echo -e "${RED}[$(date '+%Y-%m-%d %H:%M:%S')] ERROR:${NC} $1" | tee -a "$LOG_FILE" >&2
 }
 
 warn() {
-    echo -e "${YELLOW}[$(date '+%Y-%m-%d %H:%M:%S')] WARNING:${NC} $1" | tee -a "$LOG_FILE"
+    echo -e "${YELLOW}[$(date '+%Y-%m-%d %H:%M:%S')] WARNING:${NC} $1" | tee -a "$LOG_FILE" >&2
 }
 
 info() {
-    echo -e "${BLUE}[$(date '+%Y-%m-%d %H:%M:%S')] INFO:${NC} $1" | tee -a "$LOG_FILE"
+    echo -e "${BLUE}[$(date '+%Y-%m-%d %H:%M:%S')] INFO:${NC} $1" | tee -a "$LOG_FILE" >&2
 }
 
 # 错误处理
@@ -156,11 +156,14 @@ create_backup() {
     mkdir -p "$TEMP_DIR"
 
     # 复制数据库文件
-    cp "$DB_PATH" "$backup_path"
+    cp "$DB_PATH" "$backup_path" || {
+        error "数据库文件复制失败: 从 $DB_PATH 到 $backup_path"
+        exit 1
+    }
 
     # 验证复制
     if ! cmp -s "$DB_PATH" "$backup_path"; then
-        error "数据库文件复制失败"
+        error "数据库文件验证失败"
         exit 1
     fi
 
@@ -336,17 +339,17 @@ main() {
     # 创建备份
     local backup_file
     backup_file=$(create_backup)
+
     if [ -z "$backup_file" ] || [ ! -f "$backup_file" ]; then
         error "备份文件创建失败"
         exit 1
     fi
 
-    # 暂时跳过GitHub上传进行测试
-    # upload_to_github "$backup_file"
-    log "本地备份创建成功，跳过GitHub上传（测试模式）"
+    # 上传到GitHub
+    upload_to_github "$backup_file"
 
-    # 暂时跳过清理过期备份进行测试
-    # cleanup_old_backups
+    # 清理过期备份
+    cleanup_old_backups
 
     log "===== 备份完成 ====="
     send_notification "success" "数据库备份成功完成"
