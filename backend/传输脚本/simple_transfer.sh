@@ -23,3 +23,5 @@ echo "cd /opt"
 echo "mkdir -p order-system-backend"
 echo "tar -xzf backend-files.tar.gz -C order-system-backend/"
 echo "rm backend-files.tar.gz"
+
+echo chown -R "order-system:order-system" "/opt/order-system-backend"
