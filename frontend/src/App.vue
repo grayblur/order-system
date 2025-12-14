@@ -38,6 +38,10 @@
           <el-icon><View /></el-icon>
           查看所有订单
         </el-button>
+        <el-button type="warning" @click="handleShowHotMap">
+          <el-icon><TrendCharts /></el-icon>
+          订单热力图
+        </el-button>
       </div>
     </header>
 
@@ -436,6 +440,16 @@
     <!-- 商品管理组件 -->
     <GoodsManager ref="goodsManagerRef" />
 
+    <!-- 热力图对话框 -->
+    <el-dialog
+      v-model="showHotMapDialog"
+      title="订单热力图分析"
+      width="90%"
+      :before-close="handleCloseHotMap"
+    >
+      <HotMap />
+    </el-dialog>
+
     <!-- 添加姓名快捷输入对话框 -->
     <el-dialog
       v-model="showAddQuickInputDialog"
@@ -493,9 +507,10 @@
 <script setup>
 import { ref, computed, reactive, nextTick, onMounted, watch, getCurrentInstance } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { User, Goods, Search, Printer, Check, Delete, View, Setting, Plus, Close, ZoomIn, ZoomOut, Refresh } from '@element-plus/icons-vue'
+import { User, Goods, Search, Printer, Check, Delete, View, Setting, Plus, Close, ZoomIn, ZoomOut, Refresh, TrendCharts } from '@element-plus/icons-vue'
 import PrintDialog from './components/PrintDialog.vue'
 import GoodsManager from './components/GoodsManager.vue'
+import HotMap from './components/HotMap.vue'
 import dayjs from 'dayjs'
 
 const customerFormRef = ref()
@@ -770,6 +785,7 @@ watch(searchQuery, (newQuery) => {
 // --- 订单管理数据 ---
 const showOrdersDialog = ref(false)
 const showPrintDialog = ref(false)
+const showHotMapDialog = ref(false)
 const selectedDate = ref(null)
 
 // 订单数据
@@ -1014,6 +1030,15 @@ const handleShowOrders = async () => {
 
 const handleCloseOrders = () => {
   showOrdersDialog.value = false
+}
+
+// 热力图相关方法
+const handleShowHotMap = () => {
+  showHotMapDialog.value = true
+}
+
+const handleCloseHotMap = () => {
+  showHotMapDialog.value = false
 }
 
 // 删除订单

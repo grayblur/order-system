@@ -46,6 +46,11 @@ class DatabaseManager {
         )
       `);
 
+      // 创建 delivery_date 索引
+      this.run(`
+        CREATE INDEX IF NOT EXISTS idx_orders_delivery_date ON orders(delivery_date)
+      `);
+
       // 创建订单项目表
       this.run(`
         CREATE TABLE IF NOT EXISTS order_items (

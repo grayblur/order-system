@@ -179,4 +179,4 @@ docker-compose up -d
 - ✅ Local development environment configured
 - 🔄 Docker containerization available as optional deployment method
 - 前端为热更新，以后不需要每次都去开启服务
-- 不要每次都启动前端服务
+- 不要每次都启动前端服务和后端服务,检测到端口占用说明已启动服务且均为热更新,不用每次重启
