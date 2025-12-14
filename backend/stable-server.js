@@ -131,6 +131,7 @@ app.get('/api', (req, res) => {
         get: 'GET /api/orders/:id',
         update: 'PUT /api/orders/:id',
         delete: 'DELETE /api/orders/:id',
+        heatmap: 'GET /api/orders/heatmap/:year',
         production: 'GET /api/orders/production/:date',
         printers: 'GET /api/orders/printers',
         printProduction: 'POST /api/orders/print-production-list',

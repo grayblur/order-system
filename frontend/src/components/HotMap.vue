@@ -21,34 +21,39 @@
 <script setup>
 import { ref, onMounted, onUnmounted, nextTick } from 'vue';
 import * as echarts from 'echarts';
+import axios from 'axios';
+import { ElMessage } from 'element-plus';
 
 // 状态定义
 const chartRef = ref(null);
 const currentYear = ref(new Date().getFullYear()); // 默认为当前年份
 let myChart = null;
 
-// 1. 模拟数据生成器 (根据年份生成每一天的假数据)
-const getVirtualData = (year) => {
-  const date = +echarts.number.parseDate(year + '-01-01');
-  const end = +echarts.number.parseDate(+year + 1 + '-01-01');
-  const dayTime = 3600 * 24 * 1000;
-  const data = [];
-  
-  for (let time = date; time < end; time += dayTime) {
-    // 模拟：生成 0 到 100 之间的随机订单数
-    // 为了模拟真实感，加了一些随机波动
-    const count = Math.floor(Math.random() * 100); 
-    data.push([
-      echarts.format.formatTime('yyyy-MM-dd', time),
-      count
-    ]);
+// 1. 从后端获取热力图数据
+const getHeatmapData = async (year) => {
+  try {
+    // 使用相对路径,通过Vite代理访问后端API,避免浏览器代理问题
+    const response = await axios.get(`/api/orders/heatmap/${year}`);
+    if (response.data.success) {
+      // 后端返回的数据格式: [['2024-01-01', 5], ['2024-01-02', 3], ...]
+      return response.data.data;
+    } else {
+      ElMessage.error('获取热力图数据失败');
+      return [];
+    }
+  } catch (error) {
+    console.error('获取热力图数据失败:', error);
+    ElMessage.error('获取热力图数据失败: ' + (error.response?.data?.message || error.message));
+    return [];
   }
-  return data;
 };
 
 // 2. 更新图表配置
-const updateChart = () => {
+const updateChart = async () => {
   if (!myChart) return;
+
+  // 从后端获取真实数据
+  const heatmapData = await getHeatmapData(currentYear.value);
 
   const option = {
     tooltip: {
@@ -72,14 +77,14 @@ const updateChart = () => {
       textStyle: { color: '#555' },
       // --- 重点：绿色调配置 ---
       pieces: [
-        { min: 80, label: '爆单 (>80)', color: '#1B5E20' },     // 深绿 (Material Green 900)
-        { min: 50, max: 80, label: '繁忙 (50-80)', color: '#43A047' }, // 中绿 (Material Green 600)
-        { min: 20, max: 50, label: '正常 (20-50)', color: '#A5D6A7' }, // 浅绿 (Material Green 200)
-        { max: 20, label: '清闲 (<20)', color: '#E8F5E9' }       // 极浅绿 (Material Green 50)
+        { min: 9, label: '爆单 (>10)', color: '#1B5E20' },     // 深绿 (Material Green 900)
+        { min: 5, max: 8, label: '繁忙 (5-8)', color: '#43A047' }, // 中绿 (Material Green 600)
+        { min: 2, max: 5, label: '正常 (2-5)', color: '#A5D6A7' }, // 浅绿 (Material Green 200)
+        { max: 2, label: '清闲 (<2)', color: '#E8F5E9' }       // 极浅绿 (Material Green 50)
       ]
     },
     calendar: {
-      top: 60, 
+      top: 60,
       left: 30,
       right: 30,
       cellSize: ['auto', 14],
@@ -100,7 +105,7 @@ const updateChart = () => {
     series: {
       type: 'heatmap',
       coordinateSystem: 'calendar',
-      data: getVirtualData(currentYear.value) // 动态获取数据
+      data: heatmapData // 使用从后端获取的真实数据
     }
   };
 

@@ -144,6 +144,50 @@ router.get('/print-records', async (req, res) => {
   }
 });
 
+// 获取热力图统计数据 - 按年份统计每天的订单数量 - 必须放在 /:id 路由之前
+router.get('/heatmap/:year', async (req, res) => {
+  try {
+    const year = req.params.year;
+
+    // 验证年份格式
+    if (!/^\d{4}$/.test(year)) {
+      return res.status(400).json({
+        success: false,
+        error: '年份格式无效，请使用 YYYY 格式'
+      });
+    }
+
+    // 查询该年份内所有订单的配送日期和数量
+    const orders = await database.all(`
+      SELECT
+        delivery_date,
+        COUNT(*) as order_count
+      FROM orders
+      WHERE delivery_date LIKE ?
+      GROUP BY delivery_date
+      ORDER BY delivery_date
+    `, [`${year}-%`]);
+
+    // 转换为前端需要的格式: [['2024-01-01', 5], ['2024-01-02', 3], ...]
+    const heatmapData = orders.map(row => [row.delivery_date, row.order_count]);
+
+    res.json({
+      success: true,
+      year: year,
+      data: heatmapData,
+      total_days: heatmapData.length,
+      total_orders: orders.reduce((sum, row) => sum + row.order_count, 0)
+    });
+  } catch (error) {
+    console.error('获取热力图数据失败:', error);
+    res.status(500).json({
+      success: false,
+      error: '获取热力图数据失败',
+      message: error.message
+    });
+  }
+});
+
 // 获取生产单（按日期分组打印） - 必须放在 /:id 路由之前
 router.get('/production/:date', async (req, res) => {
   try {
