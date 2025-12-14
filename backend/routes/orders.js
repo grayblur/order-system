@@ -168,6 +168,13 @@ router.get('/heatmap/:year', async (req, res) => {
       ORDER BY delivery_date
     `, [`${year}-%`]);
 
+    // 查询该年份的销售总额
+    const totalAmountResult = await database.get(`
+      SELECT SUM(total_amount) as total_sales
+      FROM orders
+      WHERE delivery_date LIKE ?
+    `, [`${year}-%`]);
+
     // 转换为前端需要的格式: [['2024-01-01', 5], ['2024-01-02', 3], ...]
     const heatmapData = orders.map(row => [row.delivery_date, row.order_count]);
 
@@ -176,7 +183,8 @@ router.get('/heatmap/:year', async (req, res) => {
       year: year,
       data: heatmapData,
       total_days: heatmapData.length,
-      total_orders: orders.reduce((sum, row) => sum + row.order_count, 0)
+      total_orders: orders.reduce((sum, row) => sum + row.order_count, 0),
+      total_sales: totalAmountResult.total_sales || 0
     });
   } catch (error) {
     console.error('获取热力图数据失败:', error);
