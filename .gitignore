@@ -108,3 +108,5 @@ jspm_packages/
 
 # Claude Code configuration
 .claude/
+
+package-lock.json

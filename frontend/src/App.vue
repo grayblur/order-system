@@ -2407,6 +2407,12 @@ h3 {
   font-size: calc(12px * var(--font-scale));
 }
 
+.quick-input-tag.el-tag {
+  --original-font-size: 20px;
+  font-size: calc(20px * var(--font-scale)) !important;
+  color: #000;
+}
+
 .el-dialog {
   --original-font-size: 14px;
   font-size: calc(14px * var(--font-scale));
